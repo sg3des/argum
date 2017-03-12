@@ -422,7 +422,46 @@ func TestShortBooleans(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+}
 
+func TestChoose(t *testing.T) {
+	var args struct {
+		Str   string `argum:"-s,--str,debug|normal|fast" default:"normal"`
+		Slice []int  `argum:"1|2|3|4|5|6"`
+		Pos   string `argum:"pos,req,one|two|three|twenty one"`
+	}
+
+	uf, err := prepareStruct(&args)
+	if err != nil {
+		t.Error(err)
+	}
+	check(t, args.Str, "normal", "failed set default value to argument with opt")
+
+	err = uf.parseArgs([]string{"testing", "-s=fast", "--slice=1,2,3", "\"twenty one\""})
+	if err != nil {
+		t.Error(err)
+	}
+	check(t, args.Str, "fast", "failed set value to argument with opt")
+	check(t, len(args.Slice), 3, "failed set slice to argument with opt")
+	check(t, args.Pos, "twenty one", "failed set value to positional argument with opt")
+
+	uf, _ = prepareStruct(&args)
+	err = uf.parseArgs([]string{"testing", "-s=other", "four"})
+	if err == nil {
+		t.Error("should be error")
+	}
+
+	uf, _ = prepareStruct(&args)
+	err = uf.parseArgs([]string{"testing", "--str", "other", "four"})
+	if err == nil {
+		t.Error("should be error")
+	}
+
+	uf, _ = prepareStruct(&args)
+	err = uf.parseArgs([]string{"testing", "--slice", "9,7,3", "four"})
+	if err == nil {
+		t.Error("should be error")
+	}
 }
 
 func check(t *testing.T, k, v interface{}, err string) {

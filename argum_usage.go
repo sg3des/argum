@@ -100,9 +100,34 @@ func (f *field) usage() string {
 	return fmt.Sprintf("[%s=%s]", name, val)
 }
 
+func (f *field) usagePositional() string {
+	var name string
+
+	if len(f.opt) > 0 {
+		name = strings.Join(f.opt, "|")
+	} else {
+		switch f.v.Kind() {
+		case reflect.Slice:
+			name = fmt.Sprintf("%s...", strings.ToUpper(f.field.Name))
+		default:
+			name = fmt.Sprintf("%s", strings.ToUpper(f.field.Name))
+		}
+	}
+
+	if f.req {
+		return fmt.Sprintf("%s", name)
+	}
+
+	return fmt.Sprintf("[%s]", name)
+}
+
 func (f *field) valueType() string {
 	if !f.v.CanSet() {
 		return ""
+	}
+
+	if len(f.opt) > 0 {
+		return "[" + strings.Join(f.opt, "|") + "]"
 	}
 
 	switch f.v.Interface().(type) {
@@ -134,22 +159,6 @@ func (f *field) valueType() string {
 	}
 
 	return ""
-}
-
-func (f *field) usagePositional() string {
-	var name string
-	switch f.v.Kind() {
-	case reflect.Slice:
-		name = fmt.Sprintf("%s...", strings.ToUpper(f.field.Name))
-	default:
-		name = fmt.Sprintf("%s", strings.ToUpper(f.field.Name))
-	}
-
-	if f.req {
-		return fmt.Sprintf("%s", name)
-	}
-
-	return fmt.Sprintf("[%s]", name)
 }
 
 //ArgumentHelp print description of available options to io.Writer
@@ -224,10 +233,19 @@ func (f *field) writeHelp(w io.Writer) {
 
 	//write default
 	if f.def != "" {
-		if n+len(f.def)+10 > rightColLength {
+		def := " [default: " + f.def + "]"
+		if n+len(def) > rightColLength {
 			w.Write(newline)
 		}
-		writeWordWrap(w, " [default: "+f.def+"]")
+		n = writeWordWrap(w, def)
+	}
+
+	if len(f.opt) > 0 {
+		opt := " [" + strings.Join(f.opt, "|") + "]"
+		if n+len(opt) > rightColLength {
+			w.Write(newline)
+		}
+		writeWordWrap(w, opt)
 	}
 }
 

@@ -76,36 +76,37 @@ This options can be specified as `./example -abCde`, and each of listed will be 
 
 ```go
 var args struct {
-	A bool
-	B bool
-	C bool
-	
-	S string `argum:"req"`
-	String string
+	A bool `help:"a option, enable something"`
+	B bool `help:"if true, then something will happen"`
+	C bool `help:"c enable something"`
 
-	Arg string `argum:"-a"`
-	OneMoreArg string `argum:"-o,--onemore"`
+	S      string `argum:"req,str0|str1|str2" help:"required value for something"`
+	String string `help:"set string value"`
 
-	Pos string `argum:"pos"`
+	Arg        string `argum:"-a" help:"optional you may set Arg variable"`
+	OneMoreArg string `argum:"-o,--onemore" default:"some-value" help:"one more arg"`
+
+	Pos string `argum:"pos,debug|normal|fast" default:"normal" help:"mode"`
 }
 argum.Version = "example version 0.1.2"
 argum.MustParse(&args)
 ```
 
 ```
-example [-abc] -s=<s> [--string=<s>] [-a=<s>] [-o=<s>] [POS]
+example [-abc] -s=[str0|str1|str2] [--string=<s>] [-a=<s>] [-o=<s>] [debug|normal|fast]
 
 positional:
-  pos                     
+  pos                     mode [default: normal] [debug|normal|fast]
 
 options:
-  -a                      
-  -b                      
-  -c                      
-  -s=<s>                  
-      --string=<s>        
-  -a=<s>                  
-  -o, --onemore=<s>       
+  -a                      a option, enable something
+  -b                      if true, then something will happen
+  -c                      c enable something
+  -s=[str0|str1|str2]     required value for something [str0|str1|str2]
+      --string=<s>        set string value
+  -a=<s>                  optional you may set Arg variable
+  -o, --onemore=<s>       one more arg [default: some-value]
   -h, --help              display this help and exit
       --version           display version and exit
+
 ```

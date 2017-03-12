@@ -43,6 +43,7 @@ type field struct {
 
 	help string
 	def  string
+	opt  []string
 }
 
 //MustParse parse os.Args for struct and fatal if it has error
@@ -370,6 +371,9 @@ func (f *field) getDefaultValue() (interface{}, error) {
 }
 
 func (f *field) setValue(val string) error {
+	if len(f.opt) > 0 && !f.checkOpt(val) {
+		return fmt.Errorf("impossible value %s, you should choose from %v", val, f.opt)
+	}
 
 	switch f.v.Interface().(type) {
 
@@ -415,7 +419,20 @@ func (f *field) setValue(val string) error {
 	return nil
 }
 
+func (f *field) checkOpt(val string) bool {
+	for _, o := range f.opt {
+		if o == val {
+			return true
+		}
+	}
+	return false
+}
+
 func (f *field) setSlice(vals []string) error {
+	if len(f.opt) > 0 && !f.checkOptSlice(vals) {
+		return fmt.Errorf("impossible values %v, you should choose from %v", vals, f.opt)
+	}
+
 	switch f.v.Interface().(type) {
 
 	case []string:
@@ -480,19 +497,40 @@ func (f *field) setSlice(vals []string) error {
 	return nil
 }
 
+func (f *field) checkOptSlice(vals []string) bool {
+	var present int
+	for _, o := range f.opt {
+		if o == "" {
+			continue
+		}
+
+		for _, v := range vals {
+			if o == v {
+				present++
+				o = ""
+			}
+		}
+	}
+
+	if present == len(vals) {
+		return true
+	}
+	return false
+}
+
 func splitArg(s string) (argname string, value string) {
 	argVal := strings.SplitN(s, "=", 2)
 	if len(argVal) != 2 {
-		return s, ""
+		return strings.Trim(s, "\""), ""
 	}
 
-	return argVal[0], argVal[1]
+	return argVal[0], strings.Trim(argVal[1], "\"")
 }
 
 func getNextValues(osArgs []string, i int) (vals []string) {
 	i++
 	for ; i < len(osArgs); i++ {
-		s := osArgs[i]
+		s := strings.Trim(osArgs[i], "\"")
 		if !argValues.MatchString(s) {
 			return
 		}
@@ -553,6 +591,10 @@ func parseStructFiled(rField reflect.StructField, v reflect.Value) (*field, erro
 
 		if tag == "req" || tag == "required" {
 			f.req = true
+		}
+
+		if strings.Contains(tag, "|") {
+			f.opt = strings.Split(tag, "|")
 		}
 	}
 
