@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/sg3des/argum.svg?branch=master)](https://travis-ci.org/sg3des/argum)
+
 # Argum
 
 Argum is package for parse arguments into struct, inspired by [alexflint/go-arg](https://github.com/alexflint/go-arg).
