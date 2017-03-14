@@ -153,7 +153,7 @@ func (uf userFields) parseArgs(osArgs []string) (err error) {
 			f, ok = uf.lookupArgByLong(argname)
 		case argShort.MatchString(argname):
 			f, ok = uf.lookupArgByShort(argname)
-		case argPos.MatchString(argname):
+		default:
 			f, ok = uf.lookupArgByPos()
 		}
 
