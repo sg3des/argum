@@ -1,6 +1,7 @@
 package argum
 
 import (
+	"log"
 	"net/mail"
 	"os"
 	"reflect"
@@ -100,22 +101,28 @@ func TestPrepareArgs(t *testing.T) {
 }
 
 func TestLookupArgByLong(t *testing.T) {
-	if _, ok := uf.lookupArgByLong("--float64"); !ok {
-		t.Error("argument not found")
+	f, ok := uf.lookupArgByLong("--float64")
+	if !ok {
+		t.Fatal("argument not found")
+	}
+	f.taken = true
+
+	_, ok = uf.lookupArgByLong("--F")
+	if ok {
+		t.Fatal("argument should not be found")
 	}
 
-	if _, ok := uf.lookupArgByLong("--F"); ok {
-		t.Error("argument should not be found")
-	}
-
-	if _, ok := uf.lookupArgByLong("--float64"); ok {
-		t.Error("argument must already be found")
+	_, ok = uf.lookupArgByLong("--float64")
+	if ok {
+		t.Fatal("argument must already be found")
 	}
 }
 
 func TestLookupArgByShort(t *testing.T) {
-	if _, ok := uf.lookupArgByShort("-i"); !ok {
+	if f, ok := uf.lookupArgByShort("-i"); !ok {
 		t.Error("argument not found")
+	} else {
+		f.taken = true
 	}
 
 	if _, ok := uf.lookupArgByShort("-I"); ok {
@@ -128,13 +135,16 @@ func TestLookupArgByShort(t *testing.T) {
 }
 
 func TestLookupArgByPos(t *testing.T) {
-	if _, ok := uf.lookupArgByPos(); !ok {
+	if f, ok := uf.lookupArgByPos(); !ok {
 		t.Error("argument not found")
+	} else {
+		f.taken = true
 	}
 
-	if _, ok := uf.lookupArgByPos(); !ok {
+	if f, ok := uf.lookupArgByPos(); !ok {
 		t.Error("argument not found")
-
+	} else {
+		f.taken = true
 	}
 
 	if _, ok := uf.lookupArgByPos(); ok {
@@ -143,6 +153,14 @@ func TestLookupArgByPos(t *testing.T) {
 }
 
 func TestGetNextValues(t *testing.T) {
+	var args struct {
+		S   []string
+		Str []string
+	}
+	uf, err = prepareStruct(&args)
+	if err != nil {
+		t.Error(err)
+	}
 	vals := getNextValues([]string{"-s", "1", "2", "--str", "4"}, 0)
 	if len(vals) != 2 {
 		t.Errorf("count of vals should be 2, %v", vals)
@@ -192,7 +210,7 @@ func TestStructFieldLong(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
-	os.Args = []string{"testing", "-s", "str", "--string", "longstr", "--strings", "str0", "str1", "str2", "-i", "10", "--float64", "0.33", "-b", "true", "--bool", "-d", "2s", "-m", "mail@mail.com", "pos-value", "0.5"}
+	os.Args = []string{"testing", "-s", "str", "--string", "./longstr", "--strings", "-str0", "$str1", "/str2", "-i", "10", "--float64", "0.33", "-b", "true", "--bool", "-d", "2s", "-m", "mail@mail.com", "pos-value", "0.5"}
 	var a testargs
 	if err := Parse(&a); err != nil {
 		t.Error(err)
@@ -200,7 +218,7 @@ func TestParse(t *testing.T) {
 	if a.S != "str" {
 		t.Error("failed set short value")
 	}
-	if a.String != "longstr" {
+	if a.String != "./longstr" {
 		t.Error("failed set long value")
 	}
 	if a.I != 10 {
@@ -264,6 +282,30 @@ func TestParseWithEqualSign(t *testing.T) {
 	}
 	if a.Pos2 != 0.5 {
 		t.Error("failed set positional float argument")
+	}
+}
+
+func TestParseShort(t *testing.T) {
+	log.SetFlags(log.Lshortfile)
+	os.Args = []string{"testing", "-s=asd", "-i10", "-f0.33", "-btrue", "-d2s", "-mmail@mail.com", "pos"}
+	var a testargs
+	if err := Parse(&a); err != nil {
+		t.Error(err)
+	}
+	if a.I != 10 {
+		t.Error("failed set int")
+	}
+	if a.B == false {
+		t.Error("failed set short bool value")
+	}
+	if a.F != 0.33 {
+		t.Error("failed set float64 value")
+	}
+	if a.D != time.Duration(2e9) {
+		t.Error("faild set time duration")
+	}
+	if a.M == nil || a.M.String() != "<mail@mail.com>" {
+		t.Error("faild parse mail address")
 	}
 }
 
@@ -400,11 +442,6 @@ func TestDefaults(t *testing.T) {
 }
 
 func TestShortBooleans(t *testing.T) {
-	osArgs := []string{"-abcde"}
-	osArgs = splitShortBooleans(osArgs)
-	check(t, len(osArgs), 5, "failed split short booleans")
-
-	osArgs = []string{"testing", "-abcde"}
 	var a struct {
 		A bool
 		B bool
@@ -412,13 +449,18 @@ func TestShortBooleans(t *testing.T) {
 		D bool
 		E bool
 	}
-
-	uf, err := prepareStruct(&a)
+	var err error
+	uf, err = prepareStruct(&a)
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = uf.parseArgs(osArgs)
+	osArgs := splitShortBooleans([]string{"-abcde"})
+	if len(osArgs) != 5 {
+		t.Fatal("failed split short booleans")
+	}
+
+	err = uf.parseArgs([]string{"-abcde"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -431,13 +473,13 @@ func TestChoose(t *testing.T) {
 		Pos   string `argum:"pos,req,one|two|three|twenty one"`
 	}
 
-	uf, err := prepareStruct(&args)
+	uf, err = prepareStruct(&args)
 	if err != nil {
 		t.Error(err)
 	}
 	check(t, args.Str, "normal", "failed set default value to argument with opt")
 
-	err = uf.parseArgs([]string{"testing", "-s=fast", "--slice=1,2,3", "\"twenty one\""})
+	err = uf.parseArgs([]string{"-s=fast", "--slice=1,2,3", "\"twenty one\""})
 	if err != nil {
 		t.Error(err)
 	}
@@ -446,19 +488,19 @@ func TestChoose(t *testing.T) {
 	check(t, args.Pos, "twenty one", "failed set value to positional argument with opt")
 
 	uf, _ = prepareStruct(&args)
-	err = uf.parseArgs([]string{"testing", "-s=other", "four"})
+	err = uf.parseArgs([]string{"-s=other", "four"})
 	if err == nil {
 		t.Error("should be error")
 	}
 
 	uf, _ = prepareStruct(&args)
-	err = uf.parseArgs([]string{"testing", "--str", "other", "four"})
+	err = uf.parseArgs([]string{"--str", "other", "four"})
 	if err == nil {
 		t.Error("should be error")
 	}
 
 	uf, _ = prepareStruct(&args)
-	err = uf.parseArgs([]string{"testing", "--slice", "9,7,3", "four"})
+	err = uf.parseArgs([]string{"--slice", "9,7,3", "four"})
 	if err == nil {
 		t.Error("should be error")
 	}

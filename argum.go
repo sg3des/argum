@@ -19,6 +19,7 @@ var (
 	argValues        = regexp.MustCompile("(?i)^[a-z0-9]+.*")
 	boolmatch        = regexp.MustCompile("(true|false)")
 
+	name    string
 	Version string
 	uf      *userFields
 )
@@ -56,16 +57,18 @@ func MustParse(i interface{}) {
 
 //Parse os.Args for incomimng struct and return error
 func Parse(i interface{}) error {
+	name = os.Args[0]
+
 	var err error
 	uf, err = prepareStruct(i)
 	if err != nil {
-		return fmt.Errorf("failed prepare structure, reson: ", err)
+		return fmt.Errorf("failed prepare structure, reson: %s", err)
 	}
 
 	uf.helpRequested(os.Args[1:])
 	// uf.funcRequested(os.Args[1:])
 
-	return uf.parseArgs(os.Args)
+	return uf.parseArgs(os.Args[1:])
 }
 
 // func (uf *userFields) funcRequested(osArgs []string) {
@@ -137,7 +140,7 @@ func prepareStruct(i interface{}) (uf *userFields, err error) {
 func (uf userFields) parseArgs(osArgs []string) (err error) {
 	osArgs = splitShortBooleans(osArgs)
 
-	for i := 1; i < len(osArgs); i++ {
+	for i := 0; i < len(osArgs); i++ {
 		if osArgs[i] == "" {
 			continue
 		}
@@ -158,9 +161,11 @@ func (uf userFields) parseArgs(osArgs []string) (err error) {
 		}
 
 		if ok {
+
 			// if a.f.Name != "" {
 			// 	a.f.Func.Call([]reflect.Value{})
 			// } else {
+			f.taken = true
 			err = f.setArgument(argname, val, vals, &i)
 			// }
 		} else {
@@ -184,22 +189,43 @@ func (uf userFields) parseArgs(osArgs []string) (err error) {
 //splitShortBooleans split one args multiple booleans, ex: "-abc"
 func splitShortBooleans(osArgs []string) []string {
 	var newOsArgs []string
+
 	for _, arg := range osArgs {
-		if argShortBooleans.MatchString(arg) {
+
+		if len(arg) > 2 && argShort.MatchString(arg) {
+
+			var newArgs []string
+			var done bool
 			for _, s := range strings.Split(arg[1:], "") {
-				newOsArgs = append(newOsArgs, "-"+s)
+
+				f, ok := uf.lookupArgByShort("-" + s)
+				if !ok {
+					done = false
+					break
+				}
+				if f.v.Kind() != reflect.Bool {
+					done = false
+					break
+				}
+				done = true
+				newArgs = append(newArgs, "-"+s)
 			}
-			continue
+			if done {
+				newOsArgs = append(newOsArgs, newArgs...)
+				continue
+			}
 		}
+
 		newOsArgs = append(newOsArgs, arg)
 	}
+
 	return newOsArgs
 }
 
 func (uf *userFields) lookupArgByLong(argname string) (*field, bool) {
 	for _, f := range uf.fields {
 		if f.long == argname && !f.taken {
-			f.taken = true
+			// f.taken = true
 			return f, true
 		}
 	}
@@ -209,7 +235,7 @@ func (uf *userFields) lookupArgByLong(argname string) (*field, bool) {
 func (uf *userFields) lookupArgByShort(argname string) (*field, bool) {
 	for _, f := range uf.fields {
 		if f.short == argname && !f.taken {
-			f.taken = true
+			// f.taken = true
 			return f, true
 		}
 	}
@@ -219,7 +245,7 @@ func (uf *userFields) lookupArgByShort(argname string) (*field, bool) {
 func (uf *userFields) lookupArgByPos() (*field, bool) {
 	for _, f := range uf.fields {
 		if f.pos && !f.taken {
-			f.taken = true
+			// f.taken = true
 			return f, true
 		}
 	}
@@ -519,21 +545,44 @@ func (f *field) checkOptSlice(vals []string) bool {
 }
 
 func splitArg(s string) (argname string, value string) {
-	argVal := strings.SplitN(s, "=", 2)
-	if len(argVal) != 2 {
-		return strings.Trim(s, "\""), ""
+	// log.Println(s)
+	var argVal []string
+	if strings.Contains(s, "=") {
+		argVal = strings.SplitN(s, "=", 2)
+		return argVal[0], strings.Trim(argVal[1], "\"")
 	}
 
-	return argVal[0], strings.Trim(argVal[1], "\"")
+	if len(s) > 2 && argShort.MatchString(s) {
+		f, ok := uf.lookupArgByShort(s[:2])
+		if ok && f.v.Kind() != reflect.String {
+			// log.Println(s[:2], s[2:])
+			return s[:2], s[2:]
+		}
+	}
+
+	return strings.Trim(s, "\""), ""
 }
 
 func getNextValues(osArgs []string, i int) (vals []string) {
 	i++
 	for ; i < len(osArgs); i++ {
 		s := strings.Trim(osArgs[i], "\"")
-		if !argValues.MatchString(s) {
+
+		var ok bool
+
+		switch {
+		case argLong.MatchString(s):
+			_, ok = uf.lookupArgByLong(s)
+		case argShort.MatchString(s):
+			_, ok = uf.lookupArgByShort(s)
+		}
+
+		if ok {
 			return
 		}
+		// if !argValues.MatchString(s) {
+		// 	return
+		// }
 		vals = append(vals, s)
 	}
 
