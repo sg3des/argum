@@ -158,6 +158,7 @@ func (uf userFields) parseArgs(osArgs []string) (err error) {
 			f, ok = uf.lookupArgByShort(argname)
 		default:
 			f, ok = uf.lookupArgByPos()
+			argname = strings.Trim(osArgs[i], "\"")
 		}
 
 		if ok {
