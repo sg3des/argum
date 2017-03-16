@@ -145,6 +145,10 @@ func (uf userFields) parseArgs(osArgs []string) (err error) {
 			continue
 		}
 
+		if osArgs[i] == "--" {
+			continue
+		}
+
 		argname, val := splitArg(osArgs[i])
 		vals := getNextValues(osArgs, i)
 
@@ -576,6 +580,8 @@ func getNextValues(osArgs []string, i int) (vals []string) {
 			_, ok = uf.lookupArgByLong(s)
 		case argShort.MatchString(s):
 			_, ok = uf.lookupArgByShort(s)
+		case osArgs[i] == "--":
+			ok = true
 		}
 
 		if ok {
