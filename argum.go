@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/mail"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -58,6 +59,10 @@ func MustParse(i interface{}) {
 //Parse os.Args for incomimng struct and return error
 func Parse(i interface{}) error {
 	name = os.Args[0]
+
+	if filepath.Ext(name) == ".test" {
+		return nil
+	}
 
 	var err error
 	uf, err = prepareStruct(i)
