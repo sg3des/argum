@@ -156,7 +156,7 @@ func (uf userFields) parseArgs(osArgs []string) (err error) {
 
 		argname, val := splitArg(osArgs[i])
 		vals := getNextValues(osArgs, i)
-
+		// log.Println(argname, val, vals)
 		var f *field
 		var ok bool
 
@@ -167,7 +167,7 @@ func (uf userFields) parseArgs(osArgs []string) (err error) {
 			f, ok = uf.lookupArgByShort(argname)
 		default:
 			f, ok = uf.lookupArgByPos()
-			argname = strings.Trim(osArgs[i], "\"")
+			argname = trim(osArgs[i]) //strings.Trim(osArgs[i], "\"")
 		}
 
 		if ok {
@@ -280,8 +280,10 @@ func (f *field) setArgument(argname, val string, vals []string, i *int) (err err
 
 	if f.pos {
 		if f.v.Kind() == reflect.Slice {
-			*i = *i + len(vals)
-			return f.setSlice(append([]string{argname}, vals...))
+
+			n, err := f.setSlice(append([]string{argname}, vals...))
+			*i = *i + n
+			return err
 		} else {
 			return f.setValue(argname)
 		}
@@ -289,11 +291,13 @@ func (f *field) setArgument(argname, val string, vals []string, i *int) (err err
 
 	if f.v.Kind() == reflect.Slice {
 		if val != "" {
-			return f.setSlice(strings.Split(val, ","))
+			_, err := f.setSlice(strings.Split(val, ","))
+			return err
 		}
 
-		*i = *i + len(vals)
-		return f.setSlice(vals)
+		n, err := f.setSlice(vals)
+		*i = *i + n
+		return err
 	} else {
 		if val == "" && len(vals) > 0 {
 			val = vals[0]
@@ -464,11 +468,15 @@ func (f *field) checkOpt(val string) bool {
 	return false
 }
 
-func (f *field) setSlice(vals []string) error {
+func (f *field) setSlice(vals []string) (nvals int, err error) {
 	if len(f.opt) > 0 && !f.checkOptSlice(vals) {
-		return fmt.Errorf("impossible values %v, you should choose from %v", vals, f.opt)
+		return 0, fmt.Errorf("impossible values %v, you should choose from %v", vals, f.opt)
 	}
 
+	nvals = len(vals)
+
+	var n int
+	var s string
 	switch f.v.Interface().(type) {
 
 	case []string:
@@ -476,10 +484,12 @@ func (f *field) setSlice(vals []string) error {
 
 	case []int:
 		var ints []int
-		for _, s := range vals {
+		for n, s = range vals {
 			i, err := strconv.Atoi(s)
 			if err != nil {
-				return err
+				nvals = n
+				break
+				// return n, err
 			}
 			ints = append(ints, i)
 		}
@@ -487,10 +497,12 @@ func (f *field) setSlice(vals []string) error {
 
 	case []float32:
 		var floats []float32
-		for _, s := range vals {
+		for n, s = range vals {
 			f, err := strconv.ParseFloat(s, 32)
 			if err != nil {
-				return err
+				nvals = n
+				break
+				// return err
 			}
 			floats = append(floats, float32(f))
 		}
@@ -498,10 +510,12 @@ func (f *field) setSlice(vals []string) error {
 
 	case []float64:
 		var floats []float64
-		for _, s := range vals {
+		for n, s = range vals {
 			f, err := strconv.ParseFloat(s, 64)
 			if err != nil {
-				return err
+				nvals = n
+				break
+				// return err
 			}
 			floats = append(floats, f)
 		}
@@ -509,10 +523,12 @@ func (f *field) setSlice(vals []string) error {
 
 	case []time.Duration:
 		var durs []time.Duration
-		for _, s := range vals {
+		for n, s = range vals {
 			d, err := time.ParseDuration(s)
 			if err != nil {
-				return err
+				nvals = n
+				break
+				// return err
 			}
 			durs = append(durs, d)
 		}
@@ -520,17 +536,19 @@ func (f *field) setSlice(vals []string) error {
 
 	case []*mail.Address:
 		var maddrs []*mail.Address
-		for _, s := range vals {
+		for n, s = range vals {
 			m, err := mail.ParseAddress(s)
 			if err != nil {
-				return err
+				nvals = n
+				break
+				// return err
 			}
 			maddrs = append(maddrs, m)
 		}
 		f.v.Set(reflect.ValueOf(maddrs))
 	}
 
-	return nil
+	return
 }
 
 func (f *field) checkOptSlice(vals []string) bool {
@@ -555,28 +573,42 @@ func (f *field) checkOptSlice(vals []string) bool {
 }
 
 func splitArg(s string) (argname string, value string) {
-	// log.Println(s)
 	var argVal []string
 	if strings.Contains(s, "=") {
 		argVal = strings.SplitN(s, "=", 2)
-		return argVal[0], strings.Trim(argVal[1], "\"")
+
+		return argVal[0], trim(argVal[1])
 	}
 
 	if len(s) > 2 && argShort.MatchString(s) {
 		f, ok := uf.lookupArgByShort(s[:2])
 		if ok && f.v.Kind() != reflect.String {
-			// log.Println(s[:2], s[2:])
+
 			return s[:2], s[2:]
 		}
 	}
 
-	return strings.Trim(s, "\""), ""
+	return trim(s), ""
+}
+
+func trim(s string) string {
+	if s[0] == '"' && s[len(s)-1] == '"' {
+		s = strings.Trim(s, "\"")
+	}
+	if s[0] == '\'' && s[len(s)-1] == '\'' {
+		s = strings.Trim(s, "'")
+	}
+	if s[0] == '`' && s[len(s)-1] == '`' {
+		s = strings.Trim(s, "`")
+	}
+
+	return s
 }
 
 func getNextValues(osArgs []string, i int) (vals []string) {
 	i++
 	for ; i < len(osArgs); i++ {
-		s := strings.Trim(osArgs[i], "\"")
+		s := trim(osArgs[i]) //strings.Trim(osArgs[i], "\"")
 
 		var ok bool
 

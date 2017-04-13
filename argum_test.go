@@ -32,7 +32,7 @@ type testargs struct {
 	B    bool
 	Bool bool
 
-	D    time.Duration
+	D    time.Duration `default:"1s"`
 	Dur  time.Duration
 	Durs []time.Duration
 
@@ -287,8 +287,9 @@ func TestParseWithEqualSign(t *testing.T) {
 
 func TestParseShort(t *testing.T) {
 	log.SetFlags(log.Lshortfile)
-	os.Args = []string{"testing", "-s=asd", "-i10", "-f0.33", "-btrue", "-d2s", "-mmail@mail.com", "pos"}
+	os.Args = []string{"testing", "-s=asd", "-i10", "-f0.33", "-btrue", "-mmail@mail.com", "pos-argument", "--durs", "10s", "12s", "-d2s"}
 	var a testargs
+
 	if err := Parse(&a); err != nil {
 		t.Error(err)
 	}
