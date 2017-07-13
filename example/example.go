@@ -5,7 +5,6 @@ import (
 	"log"
 
 	"github.com/sg3des/argum"
-	"github.com/sg3des/prettyStruct"
 )
 
 var args struct {
@@ -67,5 +66,5 @@ func main() {
 	argum.Version = "0.1.2"
 	argum.MustParse(&args)
 
-	prettyStruct.Print("", args)
+	// prettyStruct.Print("", args)
 }
