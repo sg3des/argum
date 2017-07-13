@@ -358,7 +358,6 @@ func TestParseWithSlicePositional(t *testing.T) {
 	if len(a.Poses) != 3 {
 		t.Error("failed set slice positional arguments")
 	}
-	t.Logf("%+v", a)
 }
 
 func TestParseErrors(t *testing.T) {

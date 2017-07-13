@@ -28,6 +28,8 @@ var (
 type userFields struct {
 	i      interface{}
 	fields []*field
+
+	commandTaken bool
 }
 
 type field struct {
@@ -47,9 +49,19 @@ type field struct {
 	def  string
 	opt  []string
 
-	mode       bool
-	modeType   string
-	modeFields *userFields
+	command       bool
+	commandType   string
+	commandFields *userFields
+}
+
+type command struct {
+	v     reflect.Value
+	field reflect.StructField
+
+	name string
+
+	taken         bool
+	commandFields *userFields
 }
 
 //MustParse parse os.Args for struct and fatal if it has error
@@ -93,7 +105,7 @@ func (uf *userFields) parseArgs(osArgs []string) (i int, err error) {
 			continue
 		}
 
-		argname, val := splitArg(osArgs[i])
+		argname, val := uf.splitArg(osArgs[i])
 		vals := getNextValues(osArgs, i)
 
 		var f *field
@@ -105,28 +117,30 @@ func (uf *userFields) parseArgs(osArgs []string) (i int, err error) {
 		case argShort.MatchString(argname):
 			f, err = uf.lookupArgByShort(argname)
 		default:
-			argname = trim(osArgs[i])
-
-			f, err = uf.lookupArgByMode(argname)
+			f, err = uf.lookupArgByCommand(argname)
 			if err != nil {
 				f, err = uf.lookupArgByPos(argname)
 			}
 		}
+
 		if err != nil {
 			return i, err
 		}
 
-		if f.mode {
+		if f.command {
+			uf.commandTaken = true
 			f.taken = true
-			i++
-			ni, err := f.modeFields.parseArgs(osArgs[i:])
+
+			ni, err := f.commandFields.parseArgs(osArgs[i+1:])
 			if err != nil && ni+i == len(osArgs) {
 				return ni + i, err
 			}
+			i += ni
+
 			if f.v.Kind() == reflect.Ptr {
-				f.v.Set(reflect.ValueOf(f.modeFields.i))
+				f.v.Set(reflect.ValueOf(f.commandFields.i))
 			} else {
-				f.v.Set(reflect.ValueOf(f.modeFields.i).Elem())
+				f.v.Set(reflect.ValueOf(f.commandFields.i).Elem())
 			}
 
 			continue
@@ -140,7 +154,14 @@ func (uf *userFields) parseArgs(osArgs []string) (i int, err error) {
 	}
 
 	for _, f := range uf.fields {
-		if f.req && !f.taken {
+		if f.taken {
+			continue
+		}
+		if !uf.commandTaken && f.command {
+			uf.appendHelpOptions()
+			PrintHelp(0)
+		}
+		if f.req {
 			return i, fmt.Errorf("required argument `%s` not set", f.name)
 		}
 	}
@@ -211,9 +232,12 @@ func (uf *userFields) lookupArgByPos(argname string) (*field, error) {
 	return nil, fmt.Errorf("Unexpected positional argument `%s`", argname)
 }
 
-func (uf *userFields) lookupArgByMode(argname string) (f *field, err error) {
-	for _, f = range uf.fields {
-		if !f.mode {
+func (uf *userFields) lookupArgByCommand(argname string) (*field, error) {
+	if uf.commandTaken {
+		return nil, errors.New("Command is already set")
+	}
+	for _, f := range uf.fields {
+		if !f.command {
 			continue
 		}
 
@@ -229,31 +253,31 @@ func (uf *userFields) lookupArgByMode(argname string) (f *field, err error) {
 		if ss, ok := f.callMethod("Variants"); ok {
 			variants := ss.Interface().([]string)
 			if !contains(variants, argname) {
-				return f, fmt.Errorf("Unexpected argument `%s`", argname)
+				break
 			}
 
 			return f, nil
 		}
 
 		if f.name == argname && !f.taken {
-			break
+			return f, nil
 		}
 	}
 
-	if !f.mode {
-		return nil, fmt.Errorf("Unexpected mode `%s`", argname)
-	}
+	// if !f.command {
+	// 	return nil, fmt.Errorf("Unexpected command `%s`", argname)
+	// }
 
-	for _, sf := range uf.fields {
-		if !sf.mode {
-			continue
-		}
-		if f.name != sf.name && sf.modeType == f.modeType && sf.taken {
-			return nil, fmt.Errorf("mode is already set")
-		}
-	}
+	// for _, sf := range uf.fields {
+	// 	if !sf.command {
+	// 		continue
+	// 	}
+	// 	if f.name != sf.name && sf.commandType == f.commandType && sf.taken {
+	// 		return nil, fmt.Errorf("Command is already set")
+	// 	}
+	// }
 
-	return
+	return nil, fmt.Errorf("Unexpected argument `%s` for command", argname)
 }
 
 func (f *field) callMethod(name string, args ...interface{}) (reflect.Value, bool) {
@@ -317,15 +341,13 @@ func (f *field) setArgument(argname, val string, vals []string, i *int) (err err
 		n, err := f.setSlice(vals)
 		*i = *i + n
 		return err
-	} else {
-		if val == "" && len(vals) > 0 {
-			val = vals[0]
-			*i++
-		}
-		return f.setValue(val)
 	}
 
-	return nil
+	if val == "" && len(vals) > 0 {
+		val = vals[0]
+		*i++
+	}
+	return f.setValue(val)
 }
 
 func (f *field) getDefaultValue() (interface{}, error) {
@@ -558,7 +580,7 @@ func (f *field) checkOptSlice(vals []string) bool {
 	return false
 }
 
-func splitArg(s string) (argname string, value string) {
+func (uf *userFields) splitArg(s string) (argname string, value string) {
 	var argVal []string
 	if strings.Contains(s, "=") {
 		argVal = strings.SplitN(s, "=", 2)
@@ -618,10 +640,12 @@ func getNextValues(osArgs []string, i int) (vals []string) {
 	return
 }
 
-func contains(ss []string, s string) bool {
-	for _, _s := range ss {
-		if _s == s {
-			return true
+func contains(strslice []string, ss ...string) bool {
+	for _, str := range strslice {
+		for _, s := range ss {
+			if str == s {
+				return true
+			}
 		}
 	}
 	return false

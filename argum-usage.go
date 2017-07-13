@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
@@ -21,68 +20,63 @@ var (
 	newline = []byte(fmt.Sprintf("\n%26s", " "))
 )
 
+func (uf *userFields) appendHelpOptions() {
+	uf.fields = append(uf.fields, helparg)
+	if Version != "" {
+		uf.fields = append(uf.fields, versarg)
+	}
+}
+
 func (uf *userFields) helpRequested(osArgs []string) {
-	for _, arg := range osArgs {
-		if arg == "-h" || arg == "--help" {
-			uf.fields = append(uf.fields, helparg)
-			uf.fields = append(uf.fields, versarg)
-			PrintHelp(0)
+	if contains(osArgs, "--help", "-h") {
+		for _, arg := range osArgs {
+			if f, ok := uf.lookupCommand(arg); ok {
+				f.commandFields.printHelpUsage(os.Stdout, f.name)
+				os.Exit(0)
+			}
 		}
+
+		uf.appendHelpOptions()
+		PrintHelp(0)
 	}
 
 	if Version != "" {
-		for _, arg := range osArgs {
-			if arg == "--version" {
-				fmt.Println(Version)
-				os.Exit(0)
-			}
+		if contains(osArgs, "--version") {
+			fmt.Println(Version)
+			os.Exit(0)
 		}
 	}
 }
 
 //PrintHelp to stdout end exit
 func PrintHelp(exitcode int) {
-	Usage(os.Stdout)
-	Help(os.Stdout)
+	uf.printHelpUsage(os.Stdout, "")
 	os.Exit(exitcode)
 }
 
-//Usage function print first usage string to io.Writer
-func Usage(w io.Writer) {
+func (uf *userFields) printHelpUsage(w io.Writer, name string) {
+	fmt.Fprintf(w, "usage: %s ", path.Base(os.Args[0]))
+	if name != "" {
+		fmt.Fprintf(w, "%s ", name)
+	}
 	uf.usage(w)
+
+	fmt.Fprintln(w)
+	uf.help(w)
 }
 
 func (uf *userFields) usage(w io.Writer) {
-	options := []string{path.Base(os.Args[0])}
-
+	var options []string
 	var shortBool []string
 	var usage []string
 
-MODES:
-	for _, fields := range uf.getModes() {
-		for _, f := range fields {
-			if s, ok := f.callMethod("Usage"); ok {
-				w.Write([]byte(s.String()))
-				continue MODES
-			}
-		}
-
-		var mode []string
-		var req bool
-		for _, f := range fields {
-			req = f.req
-			mode = append(mode, f.name)
-		}
-		if req {
-			options = append(options, strings.Join(mode, "|"))
-		} else {
-			options = append(options, fmt.Sprintf("[%s]", strings.Join(mode, "|")))
-		}
+	if commands := uf.getCommands(); len(commands) > 0 {
+		fmt.Fprint(w, "<command> ")
 	}
 
 	//print options
 	for _, f := range uf.fields {
-		if f == helparg || f == versarg || f.pos || f.mode {
+		if f == helparg || f == versarg || f.pos || f.command {
 			continue
 		}
 
@@ -108,20 +102,28 @@ MODES:
 		options = append(options, f.usagePositional())
 	}
 
-	w.Write([]byte(strings.Join(options, " ") + "\n"))
+	w.Write([]byte(strings.Join(options, " ")))
 }
 
-func (uf *userFields) getModes() map[string][]*field {
-	var modes = make(map[string][]*field)
-
+func (uf *userFields) getCommands() (commands []*field) {
 	for _, f := range uf.fields {
-		if f == helparg || !f.mode {
+		if f == helparg || !f.command {
 			continue
 		}
-		modes[f.modeType] = append(modes[f.modeType], f)
+		commands = append(commands, f)
 	}
 
-	return modes
+	return
+}
+
+func (uf *userFields) lookupCommand(name string) (*field, bool) {
+	for _, f := range uf.fields {
+		if f.command && f.name == name {
+			return f, true
+		}
+	}
+
+	return nil, false
 }
 
 func (f *field) usage() string {
@@ -199,68 +201,52 @@ func (f *field) valueType() string {
 	return ""
 }
 
-//ArgumentHelp print description of available options to io.Writer
-func Help(w io.Writer) {
-	uf.help(w)
-}
-
 func (uf *userFields) help(w io.Writer) {
-	var headerPos, headerOpt bool
-
-MODES:
-	for name, fields := range uf.getModes() {
-		for _, f := range fields {
-			if s, ok := f.callMethod("Help"); ok {
-				w.Write([]byte(s.String()))
-				continue MODES
-			}
-		}
-
-		name = filepath.Ext(name)[1:]
-		var names []string
-		var f *field
-		for _, f = range fields {
-			names = append(names, f.name)
-		}
-		if len(names) > 1 {
-			w.Write([]byte(fmt.Sprintf("\n%s: %v\n", name, strings.Join(names, "|"))))
-		} else if len(names) == 1 {
-			w.Write([]byte(fmt.Sprintf("\n%s\n", names[0])))
-		}
-		for _, mf := range f.modeFields.fields {
-			mf.writePositional("  ", w)
-			mf.writeHelp(w)
-			w.Write([]byte("\n"))
+	if commands := uf.getCommands(); len(commands) > 0 {
+		fmt.Fprint(w, "\ncommands:\n")
+		for _, f := range commands {
+			fmt.Fprintf(w, "  %s\n", f.name)
 		}
 	}
 
-	for _, f := range uf.fields {
-		if f.pos {
-			if !headerPos {
-				w.Write([]byte("\npositional:\n"))
-				headerPos = true
-			}
-			f.writePositional("  ", w)
+	if pos := uf.getPositionals(); len(pos) > 0 {
+		fmt.Fprintln(w, "\npositional:")
+		for _, f := range pos {
+			f.writePositional(w, "  ")
 			f.writeHelp(w)
-			w.Write([]byte("\n"))
+			fmt.Fprintln(w, "")
 		}
-
 	}
 
-	for _, f := range uf.fields {
-		if !f.pos && !f.mode {
-			if !headerOpt {
-				w.Write([]byte("\noptions:\n"))
-				headerOpt = true
-			}
+	if opt := uf.getOptions(); len(opt) > 0 {
+		fmt.Fprintln(w, "\noptions:")
+		for _, f := range opt {
 			f.writeOption(w)
 			f.writeHelp(w)
-			w.Write([]byte("\n"))
+			fmt.Fprintln(w, "")
 		}
 	}
 }
 
-func (f *field) writePositional(prefix string, w io.Writer) {
+func (uf *userFields) getPositionals() (fields []*field) {
+	for _, f := range uf.fields {
+		if f.pos {
+			fields = append(fields, f)
+		}
+	}
+	return
+}
+
+func (uf *userFields) getOptions() (fields []*field) {
+	for _, f := range uf.fields {
+		if !f.pos && !f.command {
+			fields = append(fields, f)
+		}
+	}
+	return
+}
+
+func (f *field) writePositional(w io.Writer, prefix string) {
 	fmt.Fprintf(w, "%s%s", prefix, f.name)
 
 	if len(f.name) >= leftColLength {

@@ -6,11 +6,30 @@ import (
 	"strings"
 )
 
-func prepareStruct(i interface{}) (uf *userFields, err error) {
-	uf = &userFields{i: i}
+func prepareStruct(i interface{}) (*userFields, error) {
+	uf, t, v := newUserFields(i)
 
-	t := reflect.TypeOf(i)
-	v := reflect.ValueOf(i)
+	for i := 0; i < t.NumField(); i++ {
+		f, err := uf.newField(t.Field(i), v.Field(i))
+		if err != nil {
+			return uf, err
+		}
+		if !f.v.CanSet() {
+			continue
+		}
+
+		uf.fields = append(uf.fields, f)
+	}
+
+	return uf, nil
+}
+
+func newUserFields(i interface{}) (uf *userFields, t reflect.Type, v reflect.Value) {
+	uf = new(userFields)
+	uf.i = i
+
+	t = reflect.TypeOf(i)
+	v = reflect.ValueOf(i)
 	if v.IsNil() {
 		v = reflect.New(t.Elem())
 	}
@@ -22,22 +41,10 @@ func prepareStruct(i interface{}) (uf *userFields, err error) {
 		t = t.Elem()
 	}
 
-	for i := 0; i < t.NumField(); i++ {
-		f, err := parseStructField(t.Field(i), v.Field(i))
-		if err != nil {
-			return uf, err
-		}
-		if !f.v.CanSet() {
-			continue
-		}
-
-		uf.fields = append(uf.fields, f)
-	}
-
 	return
 }
 
-func parseStructField(rField reflect.StructField, v reflect.Value) (f *field, err error) {
+func (uf *userFields) newField(rField reflect.StructField, v reflect.Value) (f *field, err error) {
 	f = &field{
 		field: rField,
 		v:     v,
@@ -57,20 +64,20 @@ func parseStructField(rField reflect.StructField, v reflect.Value) (f *field, er
 	}
 
 	if v.Kind() == reflect.Ptr || v.Kind() == reflect.Struct {
-		f.mode = true
+		f.command = true
 		f.pos = false
 
 		var ptr interface{}
 		switch v.Kind() {
 		case reflect.Ptr:
 			ptr = reflect.New(v.Type().Elem()).Interface()
-			f.modeType = v.Type().Elem().String()
+			f.commandType = v.Type().Elem().String()
 		case reflect.Struct:
 			ptr = reflect.New(v.Type()).Interface()
-			f.modeType = v.Type().String()
+			f.commandType = v.Type().String()
 		}
 
-		f.modeFields, err = prepareStruct(ptr)
+		f.commandFields, err = prepareStruct(ptr)
 		return
 	}
 
