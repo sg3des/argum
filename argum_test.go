@@ -2,7 +2,6 @@ package argum
 
 import (
 	"log"
-	"net/mail"
 	"os"
 	"reflect"
 	"testing"
@@ -14,6 +13,10 @@ var (
 	// funcCalled    bool
 	// funcPtrCalled bool
 )
+
+func init() {
+	log.SetFlags(log.Lshortfile)
+}
 
 type testargs struct {
 	S       string `argum:"req"`
@@ -35,10 +38,6 @@ type testargs struct {
 	D    time.Duration `default:"1s"`
 	Dur  time.Duration
 	Durs []time.Duration
-
-	M     *mail.Address
-	Mail  *mail.Address
-	Mails []*mail.Address
 
 	Pos  string  `argum:"pos,required"`
 	Pos2 float32 `argum:"positional"`
@@ -87,8 +86,8 @@ func TestPrepareArgs(t *testing.T) {
 		t.Fatalf("length of args should be %d", fcount)
 	}
 
-	str, ok := uf.lookupArgByLong("--string")
-	if !ok {
+	str, err := uf.lookupArgByLong("--string")
+	if err != nil {
 		t.Error("failed prepare argument")
 	}
 	if str.def != "defaultStringValue" {
@@ -101,53 +100,53 @@ func TestPrepareArgs(t *testing.T) {
 }
 
 func TestLookupArgByLong(t *testing.T) {
-	f, ok := uf.lookupArgByLong("--float64")
-	if !ok {
+	f, err := uf.lookupArgByLong("--float64")
+	if err != nil {
 		t.Fatal("argument not found")
 	}
 	f.taken = true
 
-	_, ok = uf.lookupArgByLong("--F")
-	if ok {
+	_, err = uf.lookupArgByLong("--F")
+	if err == nil {
 		t.Fatal("argument should not be found")
 	}
 
-	_, ok = uf.lookupArgByLong("--float64")
-	if ok {
+	_, err = uf.lookupArgByLong("--float64")
+	if err == nil {
 		t.Fatal("argument must already be found")
 	}
 }
 
 func TestLookupArgByShort(t *testing.T) {
-	if f, ok := uf.lookupArgByShort("-i"); !ok {
+	if f, err := uf.lookupArgByShort("-i"); err != nil {
 		t.Error("argument not found")
 	} else {
 		f.taken = true
 	}
 
-	if _, ok := uf.lookupArgByShort("-I"); ok {
+	if _, err := uf.lookupArgByShort("-I"); err == nil {
 		t.Error("argument should not be found")
 	}
 
-	if _, ok := uf.lookupArgByShort("--Int"); ok {
+	if _, err := uf.lookupArgByShort("--Int"); err == nil {
 		t.Error("argument must already be found")
 	}
 }
 
 func TestLookupArgByPos(t *testing.T) {
-	if f, ok := uf.lookupArgByPos(); !ok {
+	if f, err := uf.lookupArgByPos("str"); err != nil {
 		t.Error("argument not found")
 	} else {
 		f.taken = true
 	}
 
-	if f, ok := uf.lookupArgByPos(); !ok {
+	if f, err := uf.lookupArgByPos("str"); err != nil {
 		t.Error("argument not found")
 	} else {
 		f.taken = true
 	}
 
-	if _, ok := uf.lookupArgByPos(); ok {
+	if _, err := uf.lookupArgByPos("str"); err == nil {
 		t.Error("argument must already be found")
 	}
 }
@@ -210,7 +209,7 @@ func TestStructFieldLong(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
-	os.Args = []string{"testing", "-s", "str", "--string", "./longstr", "--strings", "-str0", "$str1", "/str2", "-i", "10", "--float64", "0.33", "-b", "true", "--bool", "-d", "2s", "-m", "mail@mail.com", "pos-value", "0.5"}
+	os.Args = []string{"testing", "-s", "str", "--string", "./longstr", "--strings", "-str0", "$str1", "/str2", "-i", "10", "--float64", "0.33", "-b", "true", "--bool", "-d", "2s", "pos-value", "0.5"}
 	var a testargs
 	if err := Parse(&a); err != nil {
 		t.Error(err)
@@ -236,9 +235,6 @@ func TestParse(t *testing.T) {
 	if a.D != time.Duration(2e9) {
 		t.Error("faild set time duration")
 	}
-	if a.M == nil || a.M.String() != "<mail@mail.com>" {
-		t.Error("faild parse mail address")
-	}
 	if a.Pos != "pos-value" {
 		t.Error("failed set positional string argument")
 	}
@@ -248,7 +244,7 @@ func TestParse(t *testing.T) {
 }
 
 func TestParseWithEqualSign(t *testing.T) {
-	os.Args = []string{"testing", "-s=str", "--string=longstr", "--strings=str0,str1,str2", "-i=10", "--float64=0.33", "-b=true", "--bool=true", "-d=2s", "-m=mail@mail.com", "pos-value", "0.5"}
+	os.Args = []string{"testing", "-s=str", "--string=longstr", "--strings=str0,str1,str2", "-i=10", "--float64=0.33", "-b=true", "--bool=true", "-d=2s", "pos-value", "0.5"}
 	var a testargs
 	if err := Parse(&a); err != nil {
 		t.Error(err)
@@ -274,9 +270,6 @@ func TestParseWithEqualSign(t *testing.T) {
 	if a.D != time.Duration(2e9) {
 		t.Error("faild set time duration")
 	}
-	if a.M == nil || a.M.String() != "<mail@mail.com>" {
-		t.Error("faild parse mail address")
-	}
 	if a.Pos != "pos-value" {
 		t.Error("failed set positional string argument")
 	}
@@ -287,7 +280,7 @@ func TestParseWithEqualSign(t *testing.T) {
 
 func TestParseShort(t *testing.T) {
 	log.SetFlags(log.Lshortfile)
-	os.Args = []string{"testing", "-s=asd", "-i10", "-f0.33", "-btrue", "-mmail@mail.com", "pos-argument", "--durs", "10s", "12s", "-d2s"}
+	os.Args = []string{"testing", "-s=asd", "-i10", "-f0.33", "-btrue", "pos-argument", "--durs", "10s", "12s", "-d2s"}
 	var a testargs
 
 	if err := Parse(&a); err != nil {
@@ -305,13 +298,10 @@ func TestParseShort(t *testing.T) {
 	if a.D != time.Duration(2e9) {
 		t.Error("faild set time duration")
 	}
-	if a.M == nil || a.M.String() != "<mail@mail.com>" {
-		t.Error("faild parse mail address")
-	}
 }
 
 func TestParseSlices(t *testing.T) {
-	os.Args = []string{"testing", "-s=s", "--ints", "0", "1", "2", "--floats32", "0.3", "1", "--floats64", "0.9898", "1.1454", "--durs", "10s", "--mails", "mail@mail.com", "-b", "pos"}
+	os.Args = []string{"testing", "-s=s", "--ints", "0", "1", "2", "--floats32", "0.3", "1", "--floats64", "0.9898", "1.1454", "--durs", "10s", "-b", "pos"}
 	var a testargs
 	if err := Parse(&a); err != nil {
 		t.Error(err)
@@ -327,14 +317,11 @@ func TestParseSlices(t *testing.T) {
 	}
 	if len(a.Durs) != 1 {
 		t.Error("faild parse slice of durations")
-	}
-	if len(a.Mails) != 1 {
-		t.Error("faild parse mail addresses")
 	}
 }
 
 func TestParseSlicesWithEqualSign(t *testing.T) {
-	os.Args = []string{"testing", "-s=s", "--ints=0,1,2", "--floats32=0.3,1", "--floats64=0.93,1.3", "--durs=10s", "--mails=mail@mail.com", "pos"}
+	os.Args = []string{"testing", "-s=s", "--ints=0,1,2", "--floats32=0.3,1", "--floats64=0.93,1.3", "--durs=10s", "pos"}
 	var a testargs
 	if err := Parse(&a); err != nil {
 		t.Error(err)
@@ -350,9 +337,6 @@ func TestParseSlicesWithEqualSign(t *testing.T) {
 	}
 	if len(a.Durs) != 1 {
 		t.Error("faild parse slice of durations")
-	}
-	if len(a.Mails) != 1 {
-		t.Error("faild parse mail addresses")
 	}
 }
 
@@ -374,6 +358,7 @@ func TestParseWithSlicePositional(t *testing.T) {
 	if len(a.Poses) != 3 {
 		t.Error("failed set slice positional arguments")
 	}
+	t.Logf("%+v", a)
 }
 
 func TestParseErrors(t *testing.T) {
@@ -389,7 +374,7 @@ func TestParseErrors(t *testing.T) {
 		t.Error("should be error")
 	}
 
-	err = uf.parseArgs(os.Args)
+	_, err = uf.parseArgs(os.Args)
 	if err == nil {
 		t.Error("should be error")
 	}
@@ -409,15 +394,13 @@ func TestDefaults(t *testing.T) {
 		F32 float32       `default:"0.1"`
 		F64 float64       `default:"0.11"`
 		Dur time.Duration `default:"1s"`
-		M   *mail.Address `default:"mail@mail.com"`
 
-		Ss    []string        `default:"str0,str1"`
-		Bb    []bool          `default:"true,false"`
-		Ii    []int           `default:"1,2"`
-		Ff32  []float32       `default:"0.1,0.2"`
-		Ff64  []float64       `default:"0.11,0.22"`
-		Durs  []time.Duration `default:"1s,2s"`
-		Mails []*mail.Address `default:"mail@mail.com,mail2@mail2.com"`
+		Ss   []string        `default:"str0,str1"`
+		Bb   []bool          `default:"true,false"`
+		Ii   []int           `default:"1,2"`
+		Ff32 []float32       `default:"0.1,0.2"`
+		Ff64 []float64       `default:"0.11,0.22"`
+		Durs []time.Duration `default:"1s,2s"`
 	}
 
 	_, err := prepareStruct(&a)
@@ -431,7 +414,6 @@ func TestDefaults(t *testing.T) {
 	check(t, a.F32, float32(0.1), "failed set default float32 value")
 	check(t, a.F64, 0.11, "failed set default float64 value")
 	check(t, a.Dur, time.Duration(1e9), "failed set default time.Duration value")
-	check(t, a.M.String(), "<mail@mail.com>", "failed set default mail.Address value")
 
 	check(t, len(a.Ss), 2, "failed set default to slice of strings")
 	check(t, len(a.Bb), 2, "failed set default to slice of booleans")
@@ -439,7 +421,6 @@ func TestDefaults(t *testing.T) {
 	check(t, len(a.Ff32), 2, "failed set default to slice of float32")
 	check(t, len(a.Ff64), 2, "failed set default to slice of float64")
 	check(t, len(a.Durs), 2, "failed set default to slice of time durations")
-	check(t, len(a.Mails), 2, "failed set default to slice of mails")
 }
 
 func TestShortBooleans(t *testing.T) {
@@ -461,7 +442,7 @@ func TestShortBooleans(t *testing.T) {
 		t.Fatal("failed split short booleans")
 	}
 
-	err = uf.parseArgs([]string{"-abcde"})
+	_, err = uf.parseArgs([]string{"-abcde"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -480,7 +461,7 @@ func TestChoose(t *testing.T) {
 	}
 	check(t, args.Str, "normal", "failed set default value to argument with opt")
 
-	err = uf.parseArgs([]string{"-s=fast", "--slice=1,2,3", "\"twenty one\""})
+	_, err = uf.parseArgs([]string{"-s=fast", "--slice=1,2,3", "\"twenty one\""})
 	if err != nil {
 		t.Error(err)
 	}
@@ -489,19 +470,19 @@ func TestChoose(t *testing.T) {
 	check(t, args.Pos, "twenty one", "failed set value to positional argument with opt")
 
 	uf, _ = prepareStruct(&args)
-	err = uf.parseArgs([]string{"-s=other", "four"})
+	_, err = uf.parseArgs([]string{"-s=other", "four"})
 	if err == nil {
 		t.Error("should be error")
 	}
 
 	uf, _ = prepareStruct(&args)
-	err = uf.parseArgs([]string{"--str", "other", "four"})
+	_, err = uf.parseArgs([]string{"--str", "other", "four"})
 	if err == nil {
 		t.Error("should be error")
 	}
 
 	uf, _ = prepareStruct(&args)
-	err = uf.parseArgs([]string{"--slice", "9,7,3", "four"})
+	_, err = uf.parseArgs([]string{"--slice", "9,7,3", "four"})
 	if err == nil {
 		t.Error("should be error")
 	}
@@ -511,4 +492,29 @@ func check(t *testing.T, k, v interface{}, err string) {
 	if k != v {
 		t.Error(err)
 	}
+}
+
+type Mode struct {
+	StrVal string `argum:"pos"`
+}
+
+func TestModes(t *testing.T) {
+	var args struct {
+		PtrMode *Mode
+		Mode    Mode
+	}
+
+	uf, err = prepareStruct(&args)
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = uf.parseArgs([]string{"ptrmode", "string"})
+	if err != nil {
+		t.Error(err)
+	}
+	if args.PtrMode == nil {
+		t.Error("failed create *Mode object")
+		return
+	}
+	check(t, args.PtrMode.StrVal, "string", "failed set value to internal struct")
 }

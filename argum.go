@@ -1,8 +1,8 @@
 package argum
 
 import (
+	"errors"
 	"fmt"
-	"net/mail"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -46,6 +46,10 @@ type field struct {
 	help string
 	def  string
 	opt  []string
+
+	mode       bool
+	modeType   string
+	modeFields *userFields
 }
 
 //MustParse parse os.Args for struct and fatal if it has error
@@ -73,79 +77,14 @@ func Parse(i interface{}) error {
 	uf.helpRequested(os.Args[1:])
 	// uf.funcRequested(os.Args[1:])
 
-	return uf.parseArgs(os.Args[1:])
+	_, err = uf.parseArgs(os.Args[1:])
+	return err
 }
 
-// func (uf *userFields) funcRequested(osArgs []string) {
-// 	for i, arg := range osArgs {
-// 		if method, ok := uf.lookupMethod(arg); ok {
-// 			method.v.Call(nil)
-// 			osArgs[i] = ""
-// 		}
-// 	}
-// }
-
-// func (uf *userFields) lookupMethod(name string) (*field, bool) {
-// 	for _, f := range uf.fields {
-// 		if f.method && (f.name == name || f.long == name) {
-// 			f.taken = true
-// 			return f, true
-// 		}
-// 	}
-// 	return nil, false
-// }
-
-func prepareStruct(i interface{}) (uf *userFields, err error) {
-	uf = &userFields{i: i}
-
-	t := reflect.TypeOf(i)
-	v := reflect.ValueOf(i)
-	if v.IsNil() {
-		v = reflect.New(t.Elem())
-	}
-
-	// if mv := v.MethodByName("Version"); !mv.IsNil() {
-	// 	uf.version = mv
-	// }
-
-	// var methods []*field
-	// for i := 0; i < v.NumMethod(); i++ {
-	// 	name := strings.ToLower(t.Method(i).Name)
-	// 	mv := v.Method(i)
-
-	// 	f := &field{name: name, method: true, v: mv}
-	// 	if name == "version" {
-	// 		f.long = "--version"
-	// 		f.help = "display version and exit"
-	// 	}
-	// 	methods = append(methods, f)
-	// }
-
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-
-	for i := 0; i < t.NumField(); i++ {
-		f, err := parseStructFiled(t.Field(i), v.Field(i))
-		if err != nil {
-			return uf, err
-		}
-
-		uf.fields = append(uf.fields, f)
-	}
-
-	// uf.fields = append(uf.fields, methods...)
-
-	return
-}
-
-func (uf userFields) parseArgs(osArgs []string) (err error) {
+func (uf *userFields) parseArgs(osArgs []string) (i int, err error) {
 	osArgs = splitShortBooleans(osArgs)
 
-	for i := 0; i < len(osArgs); i++ {
+	for i = 0; i < len(osArgs); i++ {
 		if osArgs[i] == "" {
 			continue
 		}
@@ -156,44 +95,57 @@ func (uf userFields) parseArgs(osArgs []string) (err error) {
 
 		argname, val := splitArg(osArgs[i])
 		vals := getNextValues(osArgs, i)
-		// log.Println(argname, val, vals)
+
 		var f *field
-		var ok bool
+		var err error
 
 		switch {
 		case argLong.MatchString(argname):
-			f, ok = uf.lookupArgByLong(argname)
+			f, err = uf.lookupArgByLong(argname)
 		case argShort.MatchString(argname):
-			f, ok = uf.lookupArgByShort(argname)
+			f, err = uf.lookupArgByShort(argname)
 		default:
-			f, ok = uf.lookupArgByPos()
-			argname = trim(osArgs[i]) //strings.Trim(osArgs[i], "\"")
+			argname = trim(osArgs[i])
+
+			f, err = uf.lookupArgByMode(argname)
+			if err != nil {
+				f, err = uf.lookupArgByPos(argname)
+			}
 		}
-
-		if ok {
-
-			// if a.f.Name != "" {
-			// 	a.f.Func.Call([]reflect.Value{})
-			// } else {
-			f.taken = true
-			err = f.setArgument(argname, val, vals, &i)
-			// }
-		} else {
-			err = fmt.Errorf("Unexpected argument `%s`", argname)
-		}
-
 		if err != nil {
-			return err
+			return i, err
+		}
+
+		if f.mode {
+			f.taken = true
+			i++
+			ni, err := f.modeFields.parseArgs(osArgs[i:])
+			if err != nil && ni+i == len(osArgs) {
+				return ni + i, err
+			}
+			if f.v.Kind() == reflect.Ptr {
+				f.v.Set(reflect.ValueOf(f.modeFields.i))
+			} else {
+				f.v.Set(reflect.ValueOf(f.modeFields.i).Elem())
+			}
+
+			continue
+		}
+
+		f.taken = true
+		err = f.setArgument(argname, val, vals, &i)
+		if err != nil {
+			return i, err
 		}
 	}
 
 	for _, f := range uf.fields {
 		if f.req && !f.taken {
-			return fmt.Errorf("required argument `%s` not set", f.name)
+			return i, fmt.Errorf("required argument `%s` not set", f.name)
 		}
 	}
 
-	return nil
+	return i, nil
 }
 
 //splitShortBooleans split one args multiple booleans, ex: "-abc"
@@ -208,8 +160,8 @@ func splitShortBooleans(osArgs []string) []string {
 			var done bool
 			for _, s := range strings.Split(arg[1:], "") {
 
-				f, ok := uf.lookupArgByShort("-" + s)
-				if !ok {
+				f, err := uf.lookupArgByShort("-" + s)
+				if err != nil {
 					done = false
 					break
 				}
@@ -232,37 +184,100 @@ func splitShortBooleans(osArgs []string) []string {
 	return newOsArgs
 }
 
-func (uf *userFields) lookupArgByLong(argname string) (*field, bool) {
+func (uf *userFields) lookupArgByLong(argname string) (*field, error) {
 	for _, f := range uf.fields {
 		if f.long == argname && !f.taken {
-			// f.taken = true
-			return f, true
+			return f, nil
 		}
 	}
-	return nil, false
+	return nil, fmt.Errorf("Unexpected argument `%s`", argname)
 }
 
-func (uf *userFields) lookupArgByShort(argname string) (*field, bool) {
+func (uf *userFields) lookupArgByShort(argname string) (*field, error) {
 	for _, f := range uf.fields {
 		if f.short == argname && !f.taken {
-			// f.taken = true
-			return f, true
+			return f, nil
 		}
 	}
-	return nil, false
+	return nil, fmt.Errorf("Unexpected argument `%s`", argname)
 }
 
-func (uf *userFields) lookupArgByPos() (*field, bool) {
+func (uf *userFields) lookupArgByPos(argname string) (*field, error) {
 	for _, f := range uf.fields {
 		if f.pos && !f.taken {
-			// f.taken = true
-			return f, true
+			return f, nil
 		}
 	}
-	return nil, false
+	return nil, fmt.Errorf("Unexpected positional argument `%s`", argname)
+}
+
+func (uf *userFields) lookupArgByMode(argname string) (f *field, err error) {
+	for _, f = range uf.fields {
+		if !f.mode {
+			continue
+		}
+
+		//Call check method
+		if ss, ok := f.callMethod("Check", argname); ok {
+			if err := ss.Interface(); err != nil {
+				return f, fmt.Errorf("%s", err)
+			}
+			return f, nil
+		}
+
+		//Call Variants method
+		if ss, ok := f.callMethod("Variants"); ok {
+			variants := ss.Interface().([]string)
+			if !contains(variants, argname) {
+				return f, fmt.Errorf("Unexpected argument `%s`", argname)
+			}
+
+			return f, nil
+		}
+
+		if f.name == argname && !f.taken {
+			break
+		}
+	}
+
+	if !f.mode {
+		return nil, fmt.Errorf("Unexpected mode `%s`", argname)
+	}
+
+	for _, sf := range uf.fields {
+		if !sf.mode {
+			continue
+		}
+		if f.name != sf.name && sf.modeType == f.modeType && sf.taken {
+			return nil, fmt.Errorf("mode is already set")
+		}
+	}
+
+	return
+}
+
+func (f *field) callMethod(name string, args ...interface{}) (reflect.Value, bool) {
+	// log.Println(name)
+	method := f.v.MethodByName(name)
+	if !method.IsValid() {
+		return reflect.Value{}, false
+	}
+
+	var aa []reflect.Value
+	for _, arg := range args {
+		aa = append(aa, reflect.ValueOf(arg))
+	}
+
+	ss := method.Call(aa)
+	if len(ss) != 1 {
+		return reflect.Value{}, false
+	}
+
+	return ss[0], true
 }
 
 func (f *field) setArgument(argname, val string, vals []string, i *int) (err error) {
+
 	// log.Println(a.name, a.pos, argname, val, vals, *i)
 	if f.v.Kind() == reflect.Bool {
 		valbool := true
@@ -288,6 +303,10 @@ func (f *field) setArgument(argname, val string, vals []string, i *int) (err err
 			return f.setValue(argname)
 		}
 	}
+
+	// if f.mode {
+	// 	return f.setValue(val)
+	// }
 
 	if f.v.Kind() == reflect.Slice {
 		if val != "" {
@@ -334,8 +353,6 @@ func (f *field) getDefaultValue() (interface{}, error) {
 		return strconv.ParseFloat(f.def, 64)
 	case time.Duration:
 		return time.ParseDuration(f.def)
-	case *mail.Address:
-		return mail.ParseAddress(f.def)
 
 	case []string:
 		return slice, nil
@@ -395,17 +412,6 @@ func (f *field) getDefaultValue() (interface{}, error) {
 		}
 		return vals, nil
 
-	case []*mail.Address:
-		var vals []*mail.Address
-		for _, s := range slice {
-			val, err := mail.ParseAddress(s)
-			if err != nil {
-				return nil, err
-			}
-			vals = append(vals, val)
-		}
-		return vals, nil
-
 	}
 	return nil, nil
 }
@@ -447,13 +453,6 @@ func (f *field) setValue(val string) error {
 			return err
 		}
 		f.v.Set(reflect.ValueOf(d))
-
-	case *mail.Address:
-		m, err := mail.ParseAddress(val)
-		if err != nil {
-			return err
-		}
-		f.v.Set(reflect.ValueOf(m))
 	}
 
 	return nil
@@ -533,19 +532,6 @@ func (f *field) setSlice(vals []string) (nvals int, err error) {
 			durs = append(durs, d)
 		}
 		f.v.Set(reflect.ValueOf(durs))
-
-	case []*mail.Address:
-		var maddrs []*mail.Address
-		for n, s = range vals {
-			m, err := mail.ParseAddress(s)
-			if err != nil {
-				nvals = n
-				break
-				// return err
-			}
-			maddrs = append(maddrs, m)
-		}
-		f.v.Set(reflect.ValueOf(maddrs))
 	}
 
 	return
@@ -581,9 +567,8 @@ func splitArg(s string) (argname string, value string) {
 	}
 
 	if len(s) > 2 && argShort.MatchString(s) {
-		f, ok := uf.lookupArgByShort(s[:2])
-		if ok && f.v.Kind() != reflect.String {
-
+		f, err := uf.lookupArgByShort(s[:2])
+		if err == nil && f.v.Kind() != reflect.String {
 			return s[:2], s[2:]
 		}
 	}
@@ -606,130 +591,38 @@ func trim(s string) string {
 }
 
 func getNextValues(osArgs []string, i int) (vals []string) {
+
 	i++
 	for ; i < len(osArgs); i++ {
-		s := trim(osArgs[i]) //strings.Trim(osArgs[i], "\"")
-
-		var ok bool
-
+		s := trim(osArgs[i])
+		var err error
 		switch {
 		case argLong.MatchString(s):
-			_, ok = uf.lookupArgByLong(s)
+			_, err = uf.lookupArgByLong(s)
 		case argShort.MatchString(s):
-			_, ok = uf.lookupArgByShort(s)
+			_, err = uf.lookupArgByShort(s)
 		case osArgs[i] == "--":
-			ok = true
+			err = errors.New("stop")
+		default:
+			err = errors.New("blank")
 		}
 
-		if ok {
+		// if err is nil than this arg is not value
+		if err == nil {
 			return
 		}
-		// if !argValues.MatchString(s) {
-		// 	return
-		// }
+
 		vals = append(vals, s)
 	}
 
 	return
 }
 
-func parseStructFiled(rField reflect.StructField, v reflect.Value) (*field, error) {
-	f := &field{
-		field: rField,
-		v:     v,
-		name:  strings.ToLower(rField.Name),
-		help:  rField.Tag.Get("help"),
-		def:   rField.Tag.Get("default"),
-	}
-
-	if v.CanSet() {
-		val, err := f.getDefaultValue()
-		if err != nil {
-			return f, err
-		}
-		if val != nil {
-			f.v.Set(reflect.ValueOf(val))
+func contains(ss []string, s string) bool {
+	for _, _s := range ss {
+		if _s == s {
+			return true
 		}
 	}
-
-	t, ok := rField.Tag.Lookup("argum")
-	if !ok {
-		f.fromName()
-		return f, nil
-	}
-
-	tags := strings.Split(t, ",")
-	for _, tag := range tags {
-		if len(tag) <= 1 {
-			return f, fmt.Errorf("invalid argument tag `%s`", tag)
-		}
-
-		if ok, err := f.structFieldLong(tag); ok {
-			if err != nil {
-				return f, err
-			}
-			continue
-		}
-
-		if ok, err := f.structFieldShort(tag); ok {
-			if err != nil {
-				return f, err
-			}
-			continue
-		}
-
-		if tag == "pos" || tag == "positional" {
-			f.pos = true
-		}
-
-		if tag == "req" || tag == "required" {
-			f.req = true
-		}
-
-		if strings.Contains(tag, "|") {
-			f.opt = strings.Split(tag, "|")
-		}
-	}
-
-	if f.pos {
-		if f.short != "" || f.long != "" {
-			return f, fmt.Errorf("invalid `%s`, positional argument can not have long or short keys", rField.Name)
-		}
-	} else {
-		if f.long == "" && f.short == "" {
-			f.fromName()
-		}
-	}
-
-	return f, nil
-}
-
-func (f *field) fromName() {
-	if len(f.name) == 1 {
-		f.short = "-" + f.name
-	} else {
-		f.long = "--" + f.name
-	}
-}
-
-func (f *field) structFieldLong(tag string) (bool, error) {
-	if len(tag) > 2 && tag[0:2] == "--" {
-		if len(tag[2:]) > 1 {
-			f.long = tag
-			return true, nil
-		}
-		return true, fmt.Errorf("invalid tag `%s` long argument сan not be in 1 character", tag)
-	}
-	return false, nil
-}
-
-func (f *field) structFieldShort(tag string) (bool, error) {
-	if tag[0] == '-' {
-		if len(tag[1:]) == 1 {
-			f.short = tag
-			return true, nil
-		}
-		return true, fmt.Errorf("invalid tag `%s` short argument shoud be only 1 character", tag)
-	}
-	return false, nil
+	return false
 }
