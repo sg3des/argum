@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"reflect"
 	"strings"
 	"time"
@@ -20,113 +19,118 @@ var (
 	newline = []byte(fmt.Sprintf("\n%26s", " "))
 )
 
-func (uf *userFields) appendHelpOptions() {
-	uf.fields = append(uf.fields, helparg)
+func (s *structure) appendHelpOptions() {
+	s.fields = append(s.fields, helparg)
 	if Version != "" {
-		uf.fields = append(uf.fields, versarg)
+		s.fields = append(s.fields, versarg)
 	}
 }
 
-func (uf *userFields) helpRequested(osArgs []string) {
-	if contains(osArgs, "--help", "-h") {
-		for _, arg := range osArgs {
-			if f, ok := uf.lookupCommand(arg); ok {
-				f.commandFields.printHelpUsage(os.Stdout, f.name)
-				os.Exit(0)
+func (s *structure) writeUsageHelp(w io.Writer) {
+	s.writeUsage(os.Stdout)
+	s.writeHelp(os.Stdout)
+}
+
+func (s *structure) writeUsage(w io.Writer) {
+	usage := []string{"Usage:", name}
+
+	cs, sb, other := s.splitFieldsUsage()
+
+	if len(cs) > 0 {
+		usage = append(usage, "<command>")
+	}
+
+	if len(sb) > 0 {
+		var shortbooleans string
+		for _, f := range sb {
+			shortbooleans += f.short[1:]
+		}
+		usage = append(usage, "[-"+shortbooleans+"]")
+	}
+
+	for _, f := range other {
+		if f.pos {
+			usage = append(usage, f.usagePos())
+		} else {
+			usage = append(usage, f.usageOpt())
+		}
+	}
+
+	fmt.Fprintln(w, strings.Join(usage, " "))
+}
+
+func (s *structure) writeHelp(w io.Writer) {
+	cs, pos, opt := s.splitFieldsHelp()
+
+	if len(cs) > 0 {
+		fmt.Fprintln(w, "\nCommands:")
+		for _, f := range cs {
+			fmt.Fprintln(w)
+			f.writePositional(w, "  ")
+			f.writeHelp(w)
+			fmt.Fprintln(w)
+
+			for _, f := range f.s.fields {
+				if f.pos || f.command || f.req {
+					f.writePositional(w, "    ")
+					f.writeHelp(w)
+					fmt.Fprintln(w)
+				}
 			}
-		}
 
-		uf.appendHelpOptions()
-		PrintHelp(0)
+			// fmt.Fprintln(w)
+		}
+		fmt.Fprintf(w, "\n  '%s <command> --help' to list available subarguments of commands\n", name)
 	}
 
-	if Version != "" {
-		if contains(osArgs, "--version") {
-			fmt.Println(Version)
-			os.Exit(0)
+	if len(pos) > 0 {
+		fmt.Fprintln(w, "\nPositional:")
+		for _, f := range pos {
+			f.writePositional(w, "  ")
+			f.writeHelp(w)
+			fmt.Fprintln(w)
+		}
+	}
+
+	if len(opt) > 0 {
+		fmt.Fprintln(w, "\nOptions:")
+		for _, f := range opt {
+			f.writeOption(w)
+			f.writeHelp(w)
+			fmt.Fprintln(w)
 		}
 	}
 }
 
-//PrintHelp to stdout end exit
-func PrintHelp(exitcode int) {
-	uf.printHelpUsage(os.Stdout, "")
-	os.Exit(exitcode)
-}
-
-func (uf *userFields) printHelpUsage(w io.Writer, name string) {
-	fmt.Fprintf(w, "usage: %s ", path.Base(os.Args[0]))
-	if name != "" {
-		fmt.Fprintf(w, "%s ", name)
-	}
-	uf.usage(w)
-
-	fmt.Fprintln(w)
-	uf.help(w)
-}
-
-func (uf *userFields) usage(w io.Writer) {
-	var options []string
-	var shortBool []string
-	var usage []string
-
-	if commands := uf.getCommands(); len(commands) > 0 {
-		fmt.Fprint(w, "<command> ")
-	}
-
-	//print options
-	for _, f := range uf.fields {
-		if f == helparg || f == versarg || f.pos || f.command {
-			continue
+func (s *structure) splitFieldsUsage() (commands, shortbooleans, other []*field) {
+	for _, f := range s.fields {
+		switch {
+		case f.command:
+			commands = append(commands, f)
+		case f.shortboolean:
+			shortbooleans = append(shortbooleans, f)
+		default:
+			other = append(other, f)
 		}
-
-		if f.v.Kind() == reflect.Bool && f.short != "" && !f.req {
-			shortBool = append(shortBool, strings.TrimLeft(f.short, "-"))
-			continue
-		}
-
-		usage = append(usage, f.usage())
 	}
-
-	if len(shortBool) != 0 {
-		options = append(options, "[-"+strings.Join(shortBool, "")+"]")
-	}
-
-	options = append(options, usage...)
-
-	//print pos arguments
-	for _, f := range uf.fields {
-		if f == helparg || !f.pos {
-			continue
-		}
-		options = append(options, f.usagePositional())
-	}
-
-	w.Write([]byte(strings.Join(options, " ")))
-}
-
-func (uf *userFields) getCommands() (commands []*field) {
-	for _, f := range uf.fields {
-		if f == helparg || !f.command {
-			continue
-		}
-		commands = append(commands, f)
-	}
-
 	return
 }
 
-func (uf *userFields) lookupCommand(name string) (*field, bool) {
-	for _, f := range uf.fields {
-		if f.command && f.name == name {
-			return f, true
+func (s *structure) splitFieldsHelp() (commands, pos, opt []*field) {
+	for _, f := range s.fields {
+		switch {
+		case f.command:
+			commands = append(commands, f)
+		case f.pos:
+			pos = append(pos, f)
+		default:
+			opt = append(opt, f)
 		}
 	}
-
-	return nil, false
+	return
 }
 
-func (f *field) usage() string {
+func (f *field) usageOpt() string {
 	name := f.short
 	if name == "" {
 		name = f.long
@@ -144,11 +148,11 @@ func (f *field) usage() string {
 	return fmt.Sprintf("[%s=%s]", name, val)
 }
 
-func (f *field) usagePositional() string {
+func (f *field) usagePos() string {
 	var name string
 
-	if len(f.opt) > 0 {
-		name = strings.Join(f.opt, "|")
+	if len(f.variants) > 0 {
+		name = strings.Join(f.variants, "|")
 	} else {
 		switch f.v.Kind() {
 		case reflect.Slice:
@@ -170,8 +174,8 @@ func (f *field) valueType() string {
 		return ""
 	}
 
-	if len(f.opt) > 0 {
-		return "[" + strings.Join(f.opt, "|") + "]"
+	if len(f.variants) > 0 {
+		return "[" + strings.Join(f.variants, "|") + "]"
 	}
 
 	switch f.v.Interface().(type) {
@@ -199,51 +203,6 @@ func (f *field) valueType() string {
 	}
 
 	return ""
-}
-
-func (uf *userFields) help(w io.Writer) {
-	if commands := uf.getCommands(); len(commands) > 0 {
-		fmt.Fprint(w, "\ncommands:\n")
-		for _, f := range commands {
-			fmt.Fprintf(w, "  %s\n", f.name)
-		}
-	}
-
-	if pos := uf.getPositionals(); len(pos) > 0 {
-		fmt.Fprintln(w, "\npositional:")
-		for _, f := range pos {
-			f.writePositional(w, "  ")
-			f.writeHelp(w)
-			fmt.Fprintln(w, "")
-		}
-	}
-
-	if opt := uf.getOptions(); len(opt) > 0 {
-		fmt.Fprintln(w, "\noptions:")
-		for _, f := range opt {
-			f.writeOption(w)
-			f.writeHelp(w)
-			fmt.Fprintln(w, "")
-		}
-	}
-}
-
-func (uf *userFields) getPositionals() (fields []*field) {
-	for _, f := range uf.fields {
-		if f.pos {
-			fields = append(fields, f)
-		}
-	}
-	return
-}
-
-func (uf *userFields) getOptions() (fields []*field) {
-	for _, f := range uf.fields {
-		if !f.pos && !f.command {
-			fields = append(fields, f)
-		}
-	}
-	return
 }
 
 func (f *field) writePositional(w io.Writer, prefix string) {
@@ -289,19 +248,24 @@ func (f *field) writeHelp(w io.Writer) {
 
 	//write default
 	if f.def != "" {
-		def := " [default: " + f.def + "]"
+		var def string
+		if f.command {
+			def = " [default]"
+		} else {
+			def = " [default: " + f.def + "]"
+		}
 		if n+len(def) > rightColLength {
 			w.Write(newline)
 		}
 		n = writeWordWrap(w, def)
 	}
 
-	if len(f.opt) > 0 {
-		opt := " [" + strings.Join(f.opt, "|") + "]"
-		if n+len(opt) > rightColLength {
+	if len(f.variants) > 0 {
+		variants := " [" + strings.Join(f.variants, "|") + "]"
+		if n+len(variants) > rightColLength {
 			w.Write(newline)
 		}
-		writeWordWrap(w, opt)
+		writeWordWrap(w, variants)
 	}
 }
 

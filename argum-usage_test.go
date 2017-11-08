@@ -21,13 +21,13 @@ var testusage struct {
 
 func TestUsage(t *testing.T) {
 	os.Args = []string{"testing", "-s=str1", "pos"}
-	uf, err := prepareStruct(&testusage)
+	uf, err := prepareStructure(&testusage)
 	if err != nil {
 		t.Error(err)
 	}
 
 	w := bytes.NewBuffer([]byte{})
-	uf.usage(w)
+	uf.writeUsage(w)
 
 	t.Log(w.String())
 	if w.Len() == 0 {
@@ -37,13 +37,13 @@ func TestUsage(t *testing.T) {
 
 func TestHelp(t *testing.T) {
 	os.Args = []string{"testing", "-s=str", "pos"}
-	uf, err := prepareStruct(&testusage)
+	uf, err := prepareStructure(&testusage)
 	if err != nil {
 		t.Error(err)
 	}
 
 	w := bytes.NewBuffer([]byte{})
-	uf.help(w)
+	uf.writeHelp(w)
 	t.Log(w.String())
 	if len(w.String()) == 0 {
 		t.Error("failed get help")

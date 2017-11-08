@@ -37,14 +37,14 @@ var args struct {
 argum.MustParse(&args)
 ```
 
-### Set version
+### Set software version
 
 ```go
 argum.Version = "some version"
 argum.MustParse(&args)
 ```
 
-### Default
+### Default values
 
 ```go
 var args struct {
@@ -62,14 +62,47 @@ Default value for slice automatic split by comma character
 var args struct {
 	A bool
 	B bool
-	C bool `argum:"-C"`
+	C bool `argum:"-c"`
 	D bool
 	E bool 
 }
 argum.MustParse(&args)
 ```
 
-This options can be specified as `./example -abCde`, and each of listed will be set to `true`
+This options can be specified as `./example -abcde`, and each of listed will be set to `true`
+
+### Commands
+
+```go
+var args struct {
+	Ping *Ping `help:"ping"`
+	Echo *Echo `help:"open local port"`
+
+	Debug bool `argum:"-d"`
+	// some other arguments
+	// --------
+	// --------
+}
+
+type Ping struct {
+	IP string `argum:"req,pos" help:"ip address"`
+	Count int `argum:"-c" help:"count of packets"`
+}
+
+type Echo struct {
+	Port int `argum:"req,pos" help:"port number"`
+}
+
+```
+
+Commands is required and chosen only one. These structures will provide next command lines: 
+
+	./example ping 127.0.0.1
+	./example -d ping 127.0.0.1
+	./example ping 127.0.0.1 -c4
+
+	./example echo 8080
+	./example echo 8080 -d
 
 
 ### Help and Usage output
@@ -93,12 +126,12 @@ argum.MustParse(&args)
 ```
 
 ```
-example [-abc] -s=[str0|str1|str2] [--string=<s>] [-a=<s>] [-o=<s>] [debug|normal|fast]
+Usage: example [-abc] -s=[str0|str1|str2] [--string=<s>] [-a=<s>] [-o=<s>] [debug|normal|fast]
 
-positional:
+Positional:
   pos                     mode [default: normal] [debug|normal|fast]
 
-options:
+Options:
   -a                      a option, enable something
   -b                      if true, then something will happen
   -c                      c enable something
