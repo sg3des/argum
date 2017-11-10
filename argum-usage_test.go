@@ -6,6 +6,8 @@ import (
 	"os"
 	"testing"
 	"time"
+	"strings"
+	"github.com/bradleyjkemp/cupaloy"
 )
 
 var testusage struct {
@@ -30,8 +32,10 @@ func TestUsage(t *testing.T) {
 	uf.writeUsage(w)
 
 	t.Log(w.String())
-	if w.Len() == 0 {
-		t.Error("failed get usage line")
+	outputLines := strings.Split(w.String(), "\n")
+	err = cupaloy.New(cupaloy.SnapshotSubdirectory("testdata")).Snapshot(outputLines)
+	if err != nil {
+		t.Fatalf("error: %s", err)
 	}
 }
 
@@ -45,7 +49,10 @@ func TestHelp(t *testing.T) {
 	w := bytes.NewBuffer([]byte{})
 	uf.writeHelp(w)
 	t.Log(w.String())
-	if len(w.String()) == 0 {
-		t.Error("failed get help")
+
+	outputLines := strings.Split(w.String(), "\n")
+	err = cupaloy.New(cupaloy.SnapshotSubdirectory("testdata")).Snapshot(outputLines)
+	if err != nil {
+		t.Fatalf("error: %s", err)
 	}
 }
