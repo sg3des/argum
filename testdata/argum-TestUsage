@@ -1,4 +1,4 @@
 ([]string) (len=2) {
-  (string) (len=92) "Usage:  -s=[str|str1|str2] [--string=<s>] [-n=<s>] [--duration=<time>] -m <pos> [<slice...>]",
+  (string) (len=92) "usage:  -s=[str|str1|str2] [--string=<s>] [-n=<s>] [--duration=<time>] -m <pos> [<slice...>]",
   (string) ""
 }

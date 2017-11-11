@@ -32,12 +32,12 @@ func (s *structure) writeUsageHelp(w io.Writer) {
 }
 
 func (s *structure) writeUsage(w io.Writer) {
-	usage := []string{"Usage:", name}
+	usage := []string{"usage:", name}
 
 	cs, sb, other := s.splitFieldsUsage()
 
-	if len(cs) > 0 {
-		usage = append(usage, "<command>")
+	for _, f := range cs {
+		usage = append(usage, f.usagePos())
 	}
 
 	if len(sb) > 0 {
@@ -60,44 +60,30 @@ func (s *structure) writeUsage(w io.Writer) {
 }
 
 func (s *structure) writeHelp(w io.Writer) {
-	cs, pos, opt := s.splitFieldsHelp()
+	sel, cs, pos, opt := s.splitFieldsHelp()
+
+	for _, f := range sel {
+		f.writeHelpString(w, "")
+	}
 
 	if len(cs) > 0 {
-		fmt.Fprintln(w, "\nCommands:")
+		fmt.Fprintln(w, "\noptional commands:")
 		for _, f := range cs {
-			fmt.Fprintln(w)
-			f.writePositional(w, "  ")
-			f.writeHelp(w)
-			fmt.Fprintln(w)
-
-			for _, f := range f.s.fields {
-				if f.pos || f.command || f.req {
-					f.writePositional(w, "    ")
-					f.writeHelp(w)
-					fmt.Fprintln(w)
-				}
-			}
-
-			// fmt.Fprintln(w)
+			f.writeHelpString(w, "  ")
 		}
-		fmt.Fprintf(w, "\n  '%s <command> --help' to list available subarguments of commands\n", name)
 	}
 
 	if len(pos) > 0 {
-		fmt.Fprintln(w, "\nPositional:")
+		fmt.Fprintln(w, "\npositional:")
 		for _, f := range pos {
-			f.writePositional(w, "  ")
-			f.writeHelp(w)
-			fmt.Fprintln(w)
+			f.writeHelpString(w, "  ")
 		}
 	}
 
 	if len(opt) > 0 {
-		fmt.Fprintln(w, "\nOptions:")
+		fmt.Fprintln(w, "\noptions:")
 		for _, f := range opt {
-			f.writeOption(w)
-			f.writeHelp(w)
-			fmt.Fprintln(w)
+			f.writeHelpString(w, "  ")
 		}
 	}
 }
@@ -105,7 +91,7 @@ func (s *structure) writeHelp(w io.Writer) {
 func (s *structure) splitFieldsUsage() (commands, shortbooleans, other []*field) {
 	for _, f := range s.fields {
 		switch {
-		case f.command:
+		case f.cmd:
 			commands = append(commands, f)
 		case f.shortboolean:
 			shortbooleans = append(shortbooleans, f)
@@ -116,11 +102,13 @@ func (s *structure) splitFieldsUsage() (commands, shortbooleans, other []*field)
 	return
 }
 
-func (s *structure) splitFieldsHelp() (commands, pos, opt []*field) {
+func (s *structure) splitFieldsHelp() (sel, cs, pos, opt []*field) {
 	for _, f := range s.fields {
 		switch {
-		case f.command:
-			commands = append(commands, f)
+		case f.sel:
+			sel = append(sel, f)
+		case f.cmd:
+			cs = append(cs, f)
 		case f.pos:
 			pos = append(pos, f)
 		default:
@@ -205,6 +193,27 @@ func (f *field) valueType() string {
 	return ""
 }
 
+func (f *field) writeHelpString(w io.Writer, prefix string) {
+	switch {
+	case f.cmd:
+		f.writePositional(w, prefix)
+		f.writeHelp(w)
+		fmt.Fprintln(w)
+
+		for _, subf := range f.s.fields {
+			subf.writeHelpString(w, strings.Repeat(" ", len(prefix)+2))
+		}
+	case f.pos:
+		f.writePositional(w, prefix)
+		f.writeHelp(w)
+		fmt.Fprintln(w)
+	default:
+		f.writeOption(w, prefix)
+		f.writeHelp(w)
+		fmt.Fprintln(w)
+	}
+}
+
 func (f *field) writePositional(w io.Writer, prefix string) {
 	fmt.Fprintf(w, "%s%s", prefix, f.name)
 
@@ -215,7 +224,9 @@ func (f *field) writePositional(w io.Writer, prefix string) {
 	}
 }
 
-func (f *field) writeOption(w io.Writer) {
+func (f *field) writeOption(w io.Writer, prefix string) {
+	fmt.Fprintf(w, "%s", prefix)
+
 	var left string
 	if f.short != "" {
 		left += f.short
@@ -233,12 +244,12 @@ func (f *field) writeOption(w io.Writer) {
 		left += "=" + val
 	}
 
-	w.Write([]byte("  " + left))
+	w.Write([]byte(left))
 	if len(left) >= leftColLength {
 		w.Write(newline)
 	} else {
 
-		w.Write(bytes.Repeat([]byte{' '}, leftColLength-len(left)-2))
+		w.Write(bytes.Repeat([]byte{' '}, leftColLength-len(left)-len(prefix)))
 	}
 }
 
@@ -249,7 +260,7 @@ func (f *field) writeHelp(w io.Writer) {
 	//write default
 	if f.def != "" {
 		var def string
-		if f.command {
+		if f.cmd {
 			def = " [default]"
 		} else {
 			def = " [default: " + f.def + "]"

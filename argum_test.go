@@ -249,7 +249,7 @@ func TestParseWithEqualSign(t *testing.T) {
 }
 
 func TestParseShort(t *testing.T) {
-	os.Args = []string{"testing", "-s=asd", "-i10", "-f0.33", "-btrue", "pos-argument", "--durs", "10s", "12s", "-d2s"}
+	os.Args = []string{"testing", "-s=asd", "-i10", "-f0.33", "-b", "pos-argument", "--durs", "10s", "12s", "-d2s"}
 	var a testargs
 
 	if err := Parse(&a); err != nil {
@@ -398,12 +398,12 @@ func TestShortBooleans(t *testing.T) {
 		t.Error(err)
 	}
 
-	osArgs := s.splitShortBooleans([]string{"-abcde"})
+	osArgs := prepareArgs([]string{"-abcde"})
 	if len(osArgs) != 5 {
 		t.Fatal("failed split short booleans")
 	}
 
-	_, err = s.parseArgs([]string{"-abcde"})
+	_, err = s.parseArgs(osArgs)
 	if err != nil {
 		t.Error(err)
 	}
@@ -422,7 +422,9 @@ func TestChoose(t *testing.T) {
 	}
 	check(t, args.Str, "normal", "failed set default value to argument with opt")
 
-	_, err = s.parseArgs([]string{"-s=fast", "--int=1", "\"twenty one\""})
+	osArgs := prepareArgs([]string{"-s=fast", "--int=1", "\"twenty one\""})
+
+	_, err = s.parseArgs(osArgs)
 	if err != nil {
 		t.Error(err)
 	}
@@ -431,7 +433,7 @@ func TestChoose(t *testing.T) {
 	check(t, args.Pos, "twenty one", "failed set value to positional argument with opt")
 
 	s, _ = prepareStructure(&args)
-	_, err = s.parseArgs([]string{"-s=other", "four"})
+	_, err = s.parseArgs(prepareArgs([]string{"-s=other", "four"}))
 	if err == nil {
 		t.Error("should be error")
 	}
@@ -443,7 +445,7 @@ func TestChoose(t *testing.T) {
 	}
 
 	s, _ = prepareStructure(&args)
-	_, err = s.parseArgs([]string{"--slice", "9,7,3", "four"})
+	_, err = s.parseArgs(prepareArgs([]string{"--slice", "9,7,3", "four"}))
 	if err == nil {
 		t.Error("should be error")
 	}
@@ -461,7 +463,7 @@ type Mode struct {
 
 func TestModes(t *testing.T) {
 	var args struct {
-		PtrMode *Mode
+		PtrMode *Mode `argum:"req"`
 		Mode    Mode
 	}
 
@@ -469,13 +471,77 @@ func TestModes(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+
+	_, err = s.parseArgs([]string{})
+	if err == nil {
+		t.Error("should be error, as required field not set")
+	}
+
+	s, _ = prepareStructure(&args)
 	_, err = s.parseArgs([]string{"ptrmode", "string"})
 	if err != nil {
 		t.Error(err)
 	}
+
 	if args.PtrMode == nil {
 		t.Error("failed create *Mode object")
 		return
 	}
 	check(t, args.PtrMode.StrVal, "string", "failed set value to internal struct")
+}
+
+type Option struct {
+	Val string `argum:"--val"`
+	Key string `argum:"--key"`
+}
+
+func TestSelection(t *testing.T) {
+	type Args struct {
+		Commands struct {
+			First  *Mode
+			Second *Mode
+			Third  string
+		} `argum:"req,sel"`
+
+		Opt *Option `help:"optional internal struct"`
+	}
+
+	var args0 Args
+	s, err := prepareStructure(&args0)
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = s.parseArgs([]string{"first", "string value"})
+	if err != nil {
+		t.Error(err)
+	}
+
+	var args1 Args
+	s, _ = prepareStructure(&args1)
+	_, err = s.parseArgs([]string{"--third", "third value"})
+	if err != nil {
+		t.Error(err)
+	}
+
+	var args2 Args
+	s, _ = prepareStructure(&args2)
+	_, err = s.parseArgs([]string{"first", "string value", "second", "value", "--third=something"})
+	if err == nil {
+		t.Error("should be error,as command should be selected only one")
+	}
+
+	var args3 Args
+	s, _ = prepareStructure(&args3)
+	_, err = s.parseArgs([]string{"first", "string value", "opt", "--val", "value"})
+	if err != nil {
+		t.Error(err)
+	}
+
+	var args4 Args
+	s, _ = prepareStructure(&args4)
+	_, err = s.parseArgs([]string{})
+	if err == nil {
+		t.Error("should be error, as required argument not set")
+	}
 }

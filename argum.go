@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 )
 
 var (
@@ -40,22 +42,91 @@ func Parse(i interface{}) error {
 		return fmt.Errorf("failed prepare structure, %s", err)
 	}
 
-	if contains(os.Args[1:], "--help", "-h") {
-		s.appendHelpOptions()
+	s.appendHelpOptions()
 
-		for _, f := range s.fields {
-			if f.command && contains(os.Args[1:], f.name) {
-				f.s.writeUsageHelp(os.Stdout)
-				os.Exit(0)
-			}
-		}
+	if contains(os.Args[1:], "--help", "-h") {
+		// INFO: temporary hidden help for specify command, as now output all help information
+		// for _, f := range s.fields {
+		// 	if f.command && contains(os.Args[1:], f.name) {
+		// 		f.s.writeUsageHelp(os.Stdout)
+		// 		os.Exit(0)
+		// 	}
+		// }
 
 		s.writeUsageHelp(os.Stdout)
 		os.Exit(0)
 	}
 
-	_, err = s.parseArgs(os.Args[1:])
+	osArgs := prepareArgs(os.Args[1:])
+
+	_, err = s.parseArgs(osArgs)
 	return err
+}
+
+func prepareArgs(osArgs []string) (newArgs []string) {
+	for _, arg := range osArgs {
+		if matchEscape(arg) {
+			newArgs = append(newArgs, trim(arg))
+			continue
+		}
+
+		if strings.Contains(arg, "=") {
+			ss := strings.SplitN(arg, "=", 2)
+
+			newArgs = append(newArgs, ss[0])
+			newArgs = append(newArgs, splitArgs(ss[1])...)
+			continue
+		}
+
+		if matchShort(arg) && len(arg) > 2 {
+			vals := splitShortArgs(arg[2:])
+			arg = arg[:2]
+
+			newArgs = append(newArgs, arg)
+			newArgs = append(newArgs, vals...)
+			continue
+		}
+
+		newArgs = append(newArgs, arg)
+	}
+
+	return
+}
+
+func splitArgs(s string) []string {
+	var vals []string
+
+	if matchEscape(s) {
+		vals = []string{s}
+	} else {
+		vals = strings.Split(s, ",")
+	}
+	return vals
+}
+
+func splitShortArgs(s string) []string {
+	if _, err := strconv.Atoi(s); err == nil {
+		return []string{s}
+	}
+
+	if _, err := strconv.ParseFloat(s, 64); err == nil {
+		return []string{s}
+	}
+
+	if _, err := time.ParseDuration(s); err == nil {
+		return []string{s}
+	}
+
+	if _, err := strconv.ParseBool(s); err == nil {
+		return []string{s}
+	}
+
+	var args []string
+	for _, b := range s {
+		args = append(args, "-"+string(b))
+	}
+
+	return args
 }
 
 //PrintHelp to stdout end exit
@@ -92,17 +163,13 @@ func contains(strslice []string, ss ...string) bool {
 }
 
 func matchShort(arg string) bool {
-	if len(arg) > 1 && arg[0] == '-' && arg[1] != '-' {
-
-		return true
-	}
-
-	return false
+	return len(arg) > 1 && arg[0] == '-' && arg[1] != '-'
 }
 
 func matchLong(arg string) bool {
-	if len(arg) > 2 && arg[0:2] == "--" && arg[2] != '-' {
-		return true
-	}
-	return false
+	return len(arg) > 2 && arg[0:2] == "--" && arg[2] != '-'
+}
+
+func matchEscape(arg string) bool {
+	return len(arg) > 1 && arg[0] == '"' && arg[len(arg)-1] == '"'
 }

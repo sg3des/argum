@@ -2,13 +2,19 @@ package argum
 
 import (
 	"bytes"
+	"log"
 	"net/mail"
 	"os"
+	"strings"
 	"testing"
 	"time"
-	"strings"
+
 	"github.com/bradleyjkemp/cupaloy"
 )
+
+func init() {
+	log.SetFlags(log.Lshortfile)
+}
 
 var testusage struct {
 	S        string `argum:"req,str|str1|str2"`

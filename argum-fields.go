@@ -19,7 +19,8 @@ type field struct {
 	shortboolean bool
 	pos          bool
 	req          bool
-	command      bool
+	cmd          bool
+	sel          bool
 	variants     []string
 
 	help string
@@ -40,7 +41,7 @@ func (s *structure) newField(sf reflect.StructField, v reflect.Value) (f *field,
 
 	//prepare commands
 	if f.v.Kind() == reflect.Ptr || f.v.Kind() == reflect.Struct {
-		f.command = true
+		f.cmd = true
 
 		var ptr interface{}
 
@@ -58,7 +59,7 @@ func (s *structure) newField(sf reflect.StructField, v reflect.Value) (f *field,
 	}
 
 	//set default values
-	if !f.command && f.def != "" && v.CanSet() {
+	if !f.cmd && f.def != "" && v.CanSet() {
 		x, err := f.transformValue(strings.Split(f.def, ","))
 		if err != nil {
 			return f, err
@@ -82,6 +83,9 @@ func (s *structure) newField(sf reflect.StructField, v reflect.Value) (f *field,
 			f.pos = true
 		case key == "req" || key == "required":
 			f.req = true
+		case key == "sel" || key == "selection":
+			f.sel = true
+			f.s.sel = true
 		case strings.Contains(key, "|"):
 			f.variants = strings.Split(key, "|")
 		default:
@@ -150,6 +154,26 @@ func (f *field) setBool(arg string, vals []string) (int, error) {
 	}
 
 	return 0, fmt.Errorf("Unexpected value %s", arg)
+}
+
+func (f *field) setStruct(args []string) (int, error) {
+	n, err := f.s.parseArgs(args)
+
+	f.taken = true
+
+	if f.v.Kind() == reflect.Ptr {
+		f.v.Set(reflect.ValueOf(f.s.i))
+	} else {
+		f.v.Set(reflect.ValueOf(f.s.i).Elem())
+	}
+
+	if f.sel {
+		for _, f := range f.s.fields {
+			f.taken = true
+		}
+	}
+
+	return n, err
 }
 
 func (f *field) setValue(vals ...string) (int, error) {

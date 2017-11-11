@@ -1,11 +1,11 @@
 ([]string) (len=14) {
   (string) "",
-  (string) (len=11) "Positional:",
+  (string) (len=11) "positional:",
   (string) (len=79) "  pos                     positional argument more more more text and text text",
   (string) (len=30) "                          text",
   (string) (len=41) "  slice                   slice arguments",
   (string) "",
-  (string) (len=8) "Options:",
+  (string) (len=8) "options:",
   (string) (len=42) "  -s=[str|str1|str2]       [str|str1|str2]",
   (string) (len=26) "      --string=<s>        ",
   (string) (len=78) "  -n, --name=<s>          name of something with multiline long long long long",

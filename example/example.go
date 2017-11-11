@@ -2,16 +2,24 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	argum "github.com/sg3des/argum"
 )
 
 var args struct {
-	Ping *Ping `help:"some ping"`
-	Echo *Echo `help:"open local port"`
+	Command Commands `argum:"req,selection" help:"select main command"`
+
+	Listen *Echo `help:"optional internal struct"`
 
 	Value string `argum:"pos" help:"Some string value"`
 	Debug bool   `argum:"-d,--debug" help:"Enable debug mode"`
+}
+
+type Commands struct {
+	Ping *Ping  `help:"some ping"`
+	Echo *Echo  `help:"open local port"`
+	Str  string `argum:"pos" help:"simple string value instead struct"`
 }
 
 type Ping struct {
@@ -24,14 +32,24 @@ type Echo struct {
 }
 
 func main() {
+	log.SetFlags(log.Lshortfile)
+
 	argum.Version = "0.1.2"
 	argum.MustParse(&args)
 
 	fmt.Printf("%+v\n", args)
+
 	switch {
-	case args.Ping != nil:
-		fmt.Printf("%+v\n", args.Ping)
-	case args.Echo != nil:
-		fmt.Printf("%+v\n", args.Echo)
+	case args.Command.Ping != nil:
+		fmt.Printf("PING: %+v\n", args.Command.Ping)
+	case args.Command.Echo != nil:
+		fmt.Printf("ECHO: %+v\n", args.Command.Echo)
+	case args.Command.Str != "":
+		fmt.Printf("STRING: %s\n", args.Command.Str)
 	}
+
+	if args.Listen != nil {
+		fmt.Printf("LISTEN: %+v\n", args.Listen)
+	}
+
 }

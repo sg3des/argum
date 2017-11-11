@@ -19,6 +19,8 @@ Setting up available arguments using tags:
  * `argum:"required"` - same, required argument
  * `argum:"pos"` - positional argument
  * `argum:"positional"` - positional argument
+ * `argum:"sel"` - selection attribute works only on internal struct, user can select only one of nested fields, itself structure ignored from command line
+ * `argum:"selection"` - same selection attribute
  * `help:"some help"` - help description for this option
  * `default:"value"` - default value
  * if struct field not have tag *argum*, then parse it automate
@@ -71,22 +73,27 @@ argum.MustParse(&args)
 
 This options can be specified as `./example -abcde`, and each of listed will be set to `true`
 
-### Commands
+### Internal structs and selections
 
 ```go
 var args struct {
-	Ping *Ping `help:"ping"`
-	Echo *Echo `help:"open local port"`
+	Command Commands `argum:"req,selection help:"select main command"`
 
-	Debug bool `argum:"-d"`
-	// some other arguments
-	// --------
-	// --------
+	Listen *Echo `help:"optional internal struct"`
+
+	Value string `argum:"pos" help:"Some string value"`
+	Debug bool   `argum:"-d,--debug" help:"Enable debug mode"`
+}
+
+type Commands struct {
+	Ping *Ping  `help:"some ping"`
+	Echo *Echo  `help:"open local port"`
+	Str  string `argum:"pos" help:"simple string value instead struct"`
 }
 
 type Ping struct {
-	IP string `argum:"req,pos" help:"ip address"`
-	Count int `argum:"-c" help:"count of packets"`
+	IP    string `argum:"req,pos" help:"ip address"`
+	Count int    `argum:"-c" help:"count of packets"`
 }
 
 type Echo struct {
@@ -95,14 +102,16 @@ type Echo struct {
 
 ```
 
-Commands is required and chosen only one. These structures will provide next command lines: 
+Selection tag is means user should select only one of sub fields. These structures will provide next command lines: 
 
 	./example ping 127.0.0.1
 	./example -d ping 127.0.0.1
 	./example ping 127.0.0.1 -c4
+	./example ping 127.0.0.1 -c4 listen 8000
 
 	./example echo 8080
 	./example echo 8080 -d
+	./example echo 8080 listen 8000
 
 
 ### Help and Usage output
