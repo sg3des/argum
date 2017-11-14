@@ -138,11 +138,21 @@ func (f *field) nameMatch(arg string) bool {
 	return f.name == arg
 }
 
-func (f *field) setBool(arg string, vals []string) (int, error) {
+func (f *field) setBool(arg string, vals []string, next []string) (int, error) {
+
+	if len(next) > 0 {
+		_, err := strconv.ParseBool(next[0])
+		if err == nil {
+			_, err = f.setValue(next[0])
+			return 1, err
+		}
+	}
+
 	if len(vals) > 0 {
 		_, err := strconv.ParseBool(vals[0])
 		if err == nil {
-			return f.setValue(vals[0])
+			_, err = f.setValue(vals[0])
+			return 0, err
 		}
 	}
 

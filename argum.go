@@ -55,30 +55,37 @@ func Parse(i interface{}) error {
 		os.Exit(0)
 	}
 
-	osArgs, err := s.prepareArgs(os.Args[1:])
-	if err != nil {
-		return err
-	}
-
-	_, err = s.parseArgs(osArgs)
+	_, err = s.parseArgs(os.Args[1:])
 	return err
-}
-
-func splitArgs(s string) []string {
-	var vals []string
-
-	if matchEscape(s) {
-		vals = []string{s}
-	} else {
-		vals = strings.Split(s, ",")
-	}
-	return vals
 }
 
 //PrintHelp to stdout end exit
 func PrintHelp(exitcode int) {
 	s.writeUsageHelp(os.Stdout)
 	os.Exit(exitcode)
+}
+
+func splitArg(s string) (string, []string) {
+	switch {
+	case matchEscape(s):
+		return trim(s), nil
+	case strings.Contains(s, "="):
+		ss := strings.SplitN(s, "=", 2)
+		return ss[0], splitValues(ss[1])
+	case matchShort(s) && len(s) > 2:
+		return s[:2], splitValues(s[2:])
+	}
+
+	return s, nil
+}
+
+func splitValues(s string) (vals []string) {
+	if matchEscape(s) {
+		vals = []string{s}
+	} else {
+		vals = strings.Split(s, ",")
+	}
+	return vals
 }
 
 func trim(s string) string {
@@ -108,14 +115,27 @@ func contains(strslice []string, ss ...string) bool {
 	return false
 }
 
-func matchShort(arg string) bool {
-	return len(arg) > 1 && arg[0] == '-' && arg[1] != '-'
+func matchShort(s string) bool {
+	return len(s) > 1 && s[0] == '-' && s[1] != '-'
 }
 
-func matchLong(arg string) bool {
-	return len(arg) > 2 && arg[0:2] == "--" && arg[2] != '-'
+func matchSortBooleans(s string) bool {
+	return len(s) > 2 && s[0] == '-' && s[1] != '-' && s[2] > 0x40 && s[2] < 0x7B
 }
 
-func matchEscape(arg string) bool {
-	return len(arg) > 1 && arg[0] == '"' && arg[len(arg)-1] == '"'
+func matchLong(s string) bool {
+	return len(s) > 2 && s[0:2] == "--" && s[2] != '-'
+}
+
+func matchEscape(s string) bool {
+	if s[0] == '"' && s[len(s)-1] == '"' {
+		return true
+	}
+	if s[0] == '\'' && s[len(s)-1] == '\'' {
+		return true
+	}
+	if s[0] == '`' && s[len(s)-1] == '`' {
+		return true
+	}
+	return false
 }

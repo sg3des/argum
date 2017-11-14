@@ -2,10 +2,9 @@ package argum
 
 import (
 	"fmt"
+	"log"
 	"reflect"
-	"strconv"
 	"strings"
-	"time"
 )
 
 type structure struct {
@@ -67,7 +66,19 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 			continue
 		}
 
-		vals := s.getNextValues(args[i+1:])
+		if matchSortBooleans(arg) {
+			log.Println("SHORT", arg)
+			shortargs, err := s.splitShortBooleans(arg)
+			if err != nil {
+				return i, err
+			}
+			if _, err = s.parseArgs(shortargs); err != nil {
+				return i, err
+			}
+			continue
+		}
+
+		arg, vals := splitArg(arg)
 
 		f, ok := s.lookupField(arg)
 		if !ok {
@@ -75,19 +86,40 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 		}
 
 		var n int
+		var x int
+		var next []string
+
+		if len(vals) == 0 && i+1 < len(args) {
+			next, x = s.getNextValues(args[i+1:])
+		}
 
 		switch {
 		case f.sel:
 			n, err = f.setStruct(args[i:])
 		case f.cmd:
 			n, err = f.setStruct(args[i+1:])
-		case f.pos:
-			n, err = f.setValue(append([]string{arg}, vals...)...)
-			n-- //as is positional argument
 		case f.v.Kind() == reflect.Bool:
-			n, err = f.setBool(arg, vals)
+			n, err = f.setBool(arg, vals, next)
+		case f.pos:
+			if len(vals) > 0 {
+				_, err = f.setValue(append([]string{arg}, vals...)...)
+			} else {
+				n, err = f.setValue(append([]string{arg}, next...)...)
+				if n > 1 {
+					n = x
+				} else {
+					n = 0
+				}
+			}
 		default:
-			n, err = f.setValue(vals...)
+			if len(vals) > 0 {
+				_, err = f.setValue(vals...)
+			} else {
+				n, err = f.setValue(next...)
+				if n > x {
+					n = x
+				}
+			}
 		}
 
 		i += n
@@ -102,7 +134,7 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 	}
 
 	for _, f := range s.fields {
-		if !f.taken && f.req {
+		if f.req && !f.taken {
 			return i, fmt.Errorf("required argument '%s' not set", f.name)
 		}
 	}
@@ -110,62 +142,30 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 	return
 }
 
-func (s *structure) prepareArgs(osArgs []string) (newArgs []string, err error) {
-	for _, arg := range osArgs {
-
-		switch {
-		case matchEscape(arg):
-			newArgs = append(newArgs, trim(arg))
-		case strings.Contains(arg, "="):
-			ss := strings.SplitN(arg, "=", 2)
-
-			key := ss[0]
-			if ok := s.recursiveArgExists(key); !ok {
-				return newArgs, fmt.Errorf("unexpected argument '%s'", key)
-			}
-
-			vals := splitArgs(ss[1])
-
-			newArgs = append(newArgs, key)
-			newArgs = append(newArgs, vals...)
-		case matchShort(arg) && len(arg) > 2:
-			key := arg[:2]
-			if ok := s.recursiveArgExists(key); !ok {
-				return newArgs, fmt.Errorf("unexpected argument '%s'", key)
-			}
-			keys, err := s.splitShortArgs(arg[2:])
-			if err != nil {
-				return newArgs, err
-			}
-
-			newArgs = append(newArgs, key)
-			newArgs = append(newArgs, keys...)
-		default:
-			newArgs = append(newArgs, arg)
+func (s *structure) splitShortBooleans(arg string) (shorts []string, err error) {
+	for _, b := range arg[1:] {
+		short := "-" + string(b)
+		if !s.recShortBoolExists(short) {
+			err = fmt.Errorf("failed parse short defined arguments '%s'", arg)
+			return
 		}
-
+		shorts = append(shorts, short)
 	}
 
-	return newArgs, nil
+	return
 }
 
-func (s *structure) recursiveArgExists(arg string) bool {
+func (s *structure) recShortBoolExists(arg string) bool {
 	for _, f := range s.fields {
-		switch {
-		case f.long == arg:
-			return true
-		case f.short == arg:
-			return true
-		case f.cmd && f.name == arg:
+		if f.short == arg && f.v.Kind() == reflect.Bool {
 			return true
 		}
 	}
 
 	for _, f := range s.fields {
 		if f.s != nil && len(f.s.fields) > 0 {
-			ok := f.s.recursiveArgExists(arg)
-			if ok {
-				return ok
+			if ok := f.s.recShortBoolExists(arg); ok {
+				return true
 			}
 		}
 	}
@@ -173,46 +173,116 @@ func (s *structure) recursiveArgExists(arg string) bool {
 	return false
 }
 
-func (s *structure) splitShortArgs(arg string) ([]string, error) {
-	if _, err := strconv.Atoi(arg); err == nil {
-		return []string{arg}, nil
-	}
+// func (s *structure) prepareArgs(osArgs []string) (newArgs []string, err error) {
+// 	var prevf *field
+// 	log.Println(osArgs)
 
-	if _, err := strconv.ParseFloat(arg, 64); err == nil {
-		return []string{arg}, nil
-	}
+// 	for _, arg := range osArgs {
+// 		var f *field
+// 		var ok bool
 
-	if _, err := time.ParseDuration(arg); err == nil {
-		return []string{arg}, nil
-	}
+// 		switch {
+// 		case matchEscape(arg):
+// 			newArgs = append(newArgs, trim(arg))
+// 		case strings.Contains(arg, "="):
+// 			ss := strings.SplitN(arg, "=", 2)
 
-	if _, err := strconv.ParseBool(arg); err == nil {
-		return []string{arg}, nil
-	}
+// 			key := ss[0]
+// 			f, ok = s.recursiveArgExists(key)
+// 			if !ok {
+// 				return newArgs, fmt.Errorf("unexpected argument '%s'", key)
+// 			}
 
-	var args []string
-	for _, b := range arg {
-		short := "-" + string(b)
-		if ok := s.recursiveArgExists(short); !ok {
-			return args, fmt.Errorf("failed parse short defined argument '%s'", arg)
+// 			newArgs = append(newArgs, key)
+// 			vals := splitArgs(ss[1])
+// 			if len(vals) > 0 {
+// 				newArgs = append(newArgs, vals...)
+// 			}
+
+// 			//if field is slice then
+// 			if f.v.Kind() == reflect.Slice {
+// 				newArgs = append(newArgs, "--")
+// 			}
+// 		case matchShort(arg) && len(arg) > 2:
+// 			key := arg[:2]
+// 			f, ok = s.recursiveArgExists(key)
+// 			if !ok {
+// 				return newArgs, fmt.Errorf("unexpected argument '%s'", key)
+// 			}
+// 			keys, err := s.splitShortArgs(arg[2:])
+// 			if err != nil {
+// 				return newArgs, err
+// 			}
+
+// 			newArgs = append(newArgs, key)
+// 			newArgs = append(newArgs, keys...)
+// 		case strings.Contains(arg, ","):
+// 			vals := splitArgs(arg)
+// 			newArgs = append(newArgs, vals...)
+
+// 			log.Println(prevf)
+// 			if prevf != nil && prevf.v.Kind() == reflect.Slice {
+// 				newArgs = append(newArgs, "--")
+// 			}
+
+// 		case matchLong(arg) || matchShort(arg):
+// 			f, ok = s.recursiveArgExists(arg)
+// 			if !ok {
+// 				return newArgs, fmt.Errorf("unexpected argument '%s'", arg)
+// 			}
+// 			fallthrough
+// 		default:
+// 			newArgs = append(newArgs, arg)
+// 		}
+
+// 		log.Println(f)
+// 		prevf = f
+// 	}
+
+// 	return newArgs, nil
+// }
+
+func (s *structure) recursiveArgExists(arg string) (*field, bool) {
+	for _, f := range s.fields {
+		switch {
+		case f.long == arg:
+			return f, true
+		case f.short == arg:
+			return f, true
+		case f.cmd && f.name == arg:
+			return f, true
 		}
-
-		args = append(args, short)
 	}
 
-	return args, nil
+	for _, f := range s.fields {
+		if f.s != nil && len(f.s.fields) > 0 {
+			f, ok := f.s.recursiveArgExists(arg)
+			if ok {
+				return f, ok
+			}
+		}
+	}
+
+	return nil, false
 }
 
-func (s *structure) getNextValues(osArgs []string) (vals []string) {
-	for _, arg := range osArgs {
+func (s *structure) getNextValues(osArgs []string) (vals []string, n int) {
+
+	for i, arg := range osArgs {
 		var ok bool
 
 		switch {
 		case matchLong(arg):
-			_, ok = s.lookupLongField(arg)
+			ok = true
+			// _, ok = s.lookupLongField(arg)
 		case matchShort(arg):
-			_, ok = s.lookupShortField(arg)
+			ok = true
+			// _, ok = s.lookupShortField(arg)
 		case arg == "--":
+			ok = true
+		case strings.Contains(arg, ",") && i == 0:
+			vals = append(vals, splitValues(arg)...)
+			n = 1
 			ok = true
 		default:
 			if f, ok2 := s.lookupField(arg); ok2 && f.cmd {
@@ -224,7 +294,12 @@ func (s *structure) getNextValues(osArgs []string) (vals []string) {
 			return
 		}
 
-		vals = append(vals, trim(arg))
+		if matchEscape(arg) {
+			arg = trim(arg)
+		}
+
+		n++
+		vals = append(vals, arg)
 	}
 	return
 }
