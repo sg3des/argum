@@ -4,6 +4,8 @@
 
 Argum is package for parse arguments into struct, inspired by [alexflint/go-arg](https://github.com/alexflint/go-arg).
 
+WARNING! work in progress, backward compatible is not guaranteed!
+
 ```shell
 go get github.com/sg3des/argum
 ```

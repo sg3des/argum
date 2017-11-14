@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
 )
 
 var (
@@ -57,40 +55,13 @@ func Parse(i interface{}) error {
 		os.Exit(0)
 	}
 
-	osArgs := prepareArgs(os.Args[1:])
+	osArgs, err := s.prepareArgs(os.Args[1:])
+	if err != nil {
+		return err
+	}
 
 	_, err = s.parseArgs(osArgs)
 	return err
-}
-
-func prepareArgs(osArgs []string) (newArgs []string) {
-	for _, arg := range osArgs {
-		if matchEscape(arg) {
-			newArgs = append(newArgs, trim(arg))
-			continue
-		}
-
-		if strings.Contains(arg, "=") {
-			ss := strings.SplitN(arg, "=", 2)
-
-			newArgs = append(newArgs, ss[0])
-			newArgs = append(newArgs, splitArgs(ss[1])...)
-			continue
-		}
-
-		if matchShort(arg) && len(arg) > 2 {
-			vals := splitShortArgs(arg[2:])
-			arg = arg[:2]
-
-			newArgs = append(newArgs, arg)
-			newArgs = append(newArgs, vals...)
-			continue
-		}
-
-		newArgs = append(newArgs, arg)
-	}
-
-	return
 }
 
 func splitArgs(s string) []string {
@@ -102,31 +73,6 @@ func splitArgs(s string) []string {
 		vals = strings.Split(s, ",")
 	}
 	return vals
-}
-
-func splitShortArgs(s string) []string {
-	if _, err := strconv.Atoi(s); err == nil {
-		return []string{s}
-	}
-
-	if _, err := strconv.ParseFloat(s, 64); err == nil {
-		return []string{s}
-	}
-
-	if _, err := time.ParseDuration(s); err == nil {
-		return []string{s}
-	}
-
-	if _, err := strconv.ParseBool(s); err == nil {
-		return []string{s}
-	}
-
-	var args []string
-	for _, b := range s {
-		args = append(args, "-"+string(b))
-	}
-
-	return args
 }
 
 //PrintHelp to stdout end exit

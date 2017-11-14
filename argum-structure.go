@@ -3,6 +3,9 @@ package argum
 import (
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type structure struct {
@@ -68,7 +71,7 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 
 		f, ok := s.lookupField(arg)
 		if !ok {
-			return i, fmt.Errorf("Unexpected argument '%s'", args[i])
+			return i, fmt.Errorf("unexpected argument '%s'", args[i])
 		}
 
 		var n int
@@ -100,11 +103,104 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 
 	for _, f := range s.fields {
 		if !f.taken && f.req {
-			return i, fmt.Errorf("Required argument '%s' not set", f.name)
+			return i, fmt.Errorf("required argument '%s' not set", f.name)
 		}
 	}
 
 	return
+}
+
+func (s *structure) prepareArgs(osArgs []string) (newArgs []string, err error) {
+	for _, arg := range osArgs {
+
+		switch {
+		case matchEscape(arg):
+			newArgs = append(newArgs, trim(arg))
+		case strings.Contains(arg, "="):
+			ss := strings.SplitN(arg, "=", 2)
+
+			key := ss[0]
+			if ok := s.recursiveArgExists(key); !ok {
+				return newArgs, fmt.Errorf("unexpected argument '%s'", key)
+			}
+
+			vals := splitArgs(ss[1])
+
+			newArgs = append(newArgs, key)
+			newArgs = append(newArgs, vals...)
+		case matchShort(arg) && len(arg) > 2:
+			key := arg[:2]
+			if ok := s.recursiveArgExists(key); !ok {
+				return newArgs, fmt.Errorf("unexpected argument '%s'", key)
+			}
+			keys, err := s.splitShortArgs(arg[2:])
+			if err != nil {
+				return newArgs, err
+			}
+
+			newArgs = append(newArgs, key)
+			newArgs = append(newArgs, keys...)
+		default:
+			newArgs = append(newArgs, arg)
+		}
+
+	}
+
+	return newArgs, nil
+}
+
+func (s *structure) recursiveArgExists(arg string) bool {
+	for _, f := range s.fields {
+		switch {
+		case f.long == arg:
+			return true
+		case f.short == arg:
+			return true
+		case f.cmd && f.name == arg:
+			return true
+		}
+	}
+
+	for _, f := range s.fields {
+		if f.s != nil && len(f.s.fields) > 0 {
+			ok := f.s.recursiveArgExists(arg)
+			if ok {
+				return ok
+			}
+		}
+	}
+
+	return false
+}
+
+func (s *structure) splitShortArgs(arg string) ([]string, error) {
+	if _, err := strconv.Atoi(arg); err == nil {
+		return []string{arg}, nil
+	}
+
+	if _, err := strconv.ParseFloat(arg, 64); err == nil {
+		return []string{arg}, nil
+	}
+
+	if _, err := time.ParseDuration(arg); err == nil {
+		return []string{arg}, nil
+	}
+
+	if _, err := strconv.ParseBool(arg); err == nil {
+		return []string{arg}, nil
+	}
+
+	var args []string
+	for _, b := range arg {
+		short := "-" + string(b)
+		if ok := s.recursiveArgExists(short); !ok {
+			return args, fmt.Errorf("failed parse short defined argument '%s'", arg)
+		}
+
+		args = append(args, short)
+	}
+
+	return args, nil
 }
 
 func (s *structure) getNextValues(osArgs []string) (vals []string) {

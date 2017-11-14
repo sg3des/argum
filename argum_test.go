@@ -88,7 +88,7 @@ func TestPrepareArgs(t *testing.T) {
 
 	str, ok := s.lookupLongField("--string")
 	if !ok {
-		t.Error("failed prepare argument")
+		t.Fatal("failed prepare argument")
 	}
 	if str.def != "defaultStringValue" {
 		t.Error("failed prepare default value")
@@ -169,8 +169,6 @@ func TestParse(t *testing.T) {
 	if err := Parse(&a); err != nil {
 		t.Error(err)
 	}
-
-	log.Printf("%+v", a)
 
 	if a.S != "str" {
 		t.Error("failed set short value")
@@ -398,7 +396,10 @@ func TestShortBooleans(t *testing.T) {
 		t.Error(err)
 	}
 
-	osArgs := prepareArgs([]string{"-abcde"})
+	osArgs, err := s.prepareArgs([]string{"-abcde"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(osArgs) != 5 {
 		t.Fatal("failed split short booleans")
 	}
@@ -422,7 +423,10 @@ func TestChoose(t *testing.T) {
 	}
 	check(t, args.Str, "normal", "failed set default value to argument with opt")
 
-	osArgs := prepareArgs([]string{"-s=fast", "--int=1", "\"twenty one\""})
+	osArgs, err := s.prepareArgs([]string{"-s=fast", "--int=1", "\"twenty one\""})
+	if err != nil {
+		t.Error(err)
+	}
 
 	_, err = s.parseArgs(osArgs)
 	if err != nil {
@@ -433,7 +437,11 @@ func TestChoose(t *testing.T) {
 	check(t, args.Pos, "twenty one", "failed set value to positional argument with opt")
 
 	s, _ = prepareStructure(&args)
-	_, err = s.parseArgs(prepareArgs([]string{"-s=other", "four"}))
+	sa, err := s.prepareArgs([]string{"-s=other", "four"})
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = s.parseArgs(sa)
 	if err == nil {
 		t.Error("should be error")
 	}
@@ -445,7 +453,11 @@ func TestChoose(t *testing.T) {
 	}
 
 	s, _ = prepareStructure(&args)
-	_, err = s.parseArgs(prepareArgs([]string{"--slice", "9,7,3", "four"}))
+	sa, err = s.prepareArgs([]string{"--slice", "9,7,3", "four"})
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = s.parseArgs(sa)
 	if err == nil {
 		t.Error("should be error")
 	}
@@ -543,5 +555,43 @@ func TestSelection(t *testing.T) {
 	_, err = s.parseArgs([]string{})
 	if err == nil {
 		t.Error("should be error, as required argument not set")
+	}
+}
+
+func TestCaseSensitive(t *testing.T) {
+	var args struct {
+		Search bool `argum:"-S"`
+		Sleep  bool `argum:"-s"`
+	}
+
+	s, err := prepareStructure(&args)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = s.parseArgs([]string{"-S", "-s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s, _ = prepareStructure(&args)
+	osArgs, err := s.prepareArgs([]string{"-Ss"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(osArgs) != 2 {
+		t.Fatal("failed prepare arguments, length should be 2")
+	}
+
+	_, err = s.parseArgs(osArgs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !args.Search {
+		t.Error("failed set uppercase boolean argument")
+	}
+	if !args.Sleep {
+		t.Error("failed set lowercase boolean argument")
 	}
 }

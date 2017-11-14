@@ -144,9 +144,11 @@ func (f *field) usagePos() string {
 	} else {
 		switch f.v.Kind() {
 		case reflect.Slice:
-			name = fmt.Sprintf("<%s...>", strings.ToLower(f.field.Name))
+			// name = fmt.Sprintf("<%s...>", f.field.Name)
+			name = fmt.Sprintf("<%s...>", f.name)
 		default:
-			name = fmt.Sprintf("<%s>", strings.ToLower(f.field.Name))
+			// name = fmt.Sprintf("<%s>", f.field.Name)
+			name = fmt.Sprintf("<%s>", f.name)
 		}
 	}
 

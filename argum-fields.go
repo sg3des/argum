@@ -120,6 +120,7 @@ func (s *structure) newField(sf reflect.StructField, v reflect.Value) (f *field,
 }
 
 func (f *field) autoShortLong(fieldname string) {
+	fieldname = strings.ToLower(fieldname)
 	if len(fieldname) == 1 {
 		f.short = "-" + fieldname
 	} else {
@@ -153,7 +154,7 @@ func (f *field) setBool(arg string, vals []string) (int, error) {
 		return 0, nil
 	}
 
-	return 0, fmt.Errorf("Unexpected value %s", arg)
+	return 0, fmt.Errorf("unexpected value %s", arg)
 }
 
 func (f *field) setStruct(args []string) (int, error) {
@@ -183,7 +184,7 @@ func (f *field) setValue(vals ...string) (int, error) {
 
 	if len(f.variants) > 0 {
 		if !contains(f.variants, vals[0]) {
-			return 0, fmt.Errorf("Impossible value %s, choose from %s", vals[0], f.variants)
+			return 0, fmt.Errorf("impossible value %s, choose from %s", vals[0], f.variants)
 		}
 	}
 
@@ -233,7 +234,7 @@ func (f *field) transformValue(vals []string) (rv reflect.Value, err error) {
 	case []time.Duration:
 		x, err = sliceToTimeDuration(vals)
 	default:
-		err = fmt.Errorf("Field %s has unsupported type %T", f.field.Name, f.v.Interface())
+		err = fmt.Errorf("field %s has unsupported type %T", f.field.Name, f.v.Interface())
 	}
 
 	return reflect.ValueOf(x), err
