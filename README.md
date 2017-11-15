@@ -52,7 +52,7 @@ argum.MustParse(&args)
 ```go
 var args struct {
 	String string    `default:"some string"`
-	Slice  []string  `default:"one,two,thre"`
+	Slice  []string  `default:"one,two,three"`
 	IntSlice []int `argum:"--int" default:"0,2,3"`
 }
 ```
@@ -78,7 +78,7 @@ This options can be specified as `./example -abcde`, and each of listed will be 
 
 ```go
 var args struct {
-	Command Commands `argum:"req,oneof help:"select main command"`
+	Command Commands `argum:"req,oneof" help:"select main command"`
 
 	Listen *Echo `help:"optional internal struct"`
 
