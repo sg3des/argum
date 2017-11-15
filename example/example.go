@@ -8,7 +8,7 @@ import (
 )
 
 var args struct {
-	Command Commands `argum:"req,selection" help:"select main command"`
+	Command Commands `argum:"req,oneof" help:"select main command"`
 
 	Listen *Echo `help:"optional internal struct"`
 

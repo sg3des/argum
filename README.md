@@ -21,8 +21,7 @@ Setting up available arguments using tags:
  * `argum:"required"` - same, required argument
  * `argum:"pos"` - positional argument
  * `argum:"positional"` - positional argument
- * `argum:"sel"` - selection attribute works only on internal struct, user can select only one of nested fields, itself structure ignored from command line
- * `argum:"selection"` - same selection attribute
+ * `argum:"oneof"` - this keyword work only on internal struct, user can select only one of nested fields, itself structure ignored from command line
  * `help:"some help"` - help description for this option
  * `default:"value"` - default value
  * if struct field not have tag *argum*, then parse it automate
@@ -75,11 +74,11 @@ argum.MustParse(&args)
 
 This options can be specified as `./example -abcde`, and each of listed will be set to `true`
 
-### Internal structs and selections
+### Internal structs and `oneof` keyword
 
 ```go
 var args struct {
-	Command Commands `argum:"req,selection help:"select main command"`
+	Command Commands `argum:"req,oneof help:"select main command"`
 
 	Listen *Echo `help:"optional internal struct"`
 
@@ -104,7 +103,7 @@ type Echo struct {
 
 ```
 
-Selection tag is means user should select only one of sub fields. These structures will provide next command lines: 
+Keyword `oneof` is means user should chose only one of nested fields. These example structures will provide next command lines: 
 
 	./example ping 127.0.0.1
 	./example -d ping 127.0.0.1

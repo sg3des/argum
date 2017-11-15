@@ -20,7 +20,7 @@ type field struct {
 	pos          bool
 	req          bool
 	cmd          bool
-	sel          bool
+	oneof        bool
 	variants     []string
 
 	help string
@@ -83,9 +83,9 @@ func (s *structure) newField(sf reflect.StructField, v reflect.Value) (f *field,
 			f.pos = true
 		case key == "req" || key == "required":
 			f.req = true
-		case key == "sel" || key == "selection":
-			f.sel = true
-			f.s.sel = true
+		case key == "oneof":
+			f.oneof = true
+			f.s.oneof = true
 		case strings.Contains(key, "|"):
 			f.variants = strings.Split(key, "|")
 		default:
@@ -178,7 +178,7 @@ func (f *field) setStruct(args []string) (int, error) {
 		f.v.Set(reflect.ValueOf(f.s.i).Elem())
 	}
 
-	if f.sel {
+	if f.oneof {
 		for _, f := range f.s.fields {
 			f.taken = true
 		}

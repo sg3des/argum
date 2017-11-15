@@ -60,9 +60,9 @@ func (s *structure) writeUsage(w io.Writer) {
 }
 
 func (s *structure) writeHelp(w io.Writer) {
-	sel, cs, pos, opt := s.splitFieldsHelp()
+	oneof, cs, pos, opt := s.splitFieldsHelp()
 
-	for _, f := range sel {
+	for _, f := range oneof {
 		f.writeHelpString(w, "")
 	}
 
@@ -102,11 +102,11 @@ func (s *structure) splitFieldsUsage() (commands, shortbooleans, other []*field)
 	return
 }
 
-func (s *structure) splitFieldsHelp() (sel, cs, pos, opt []*field) {
+func (s *structure) splitFieldsHelp() (oneof, cs, pos, opt []*field) {
 	for _, f := range s.fields {
 		switch {
-		case f.sel:
-			sel = append(sel, f)
+		case f.oneof:
+			oneof = append(oneof, f)
 		case f.cmd:
 			cs = append(cs, f)
 		case f.pos:

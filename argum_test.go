@@ -480,7 +480,7 @@ func TestSelection(t *testing.T) {
 			First  *Mode
 			Second *Mode
 			Third  string
-		} `argum:"req,sel"`
+		} `argum:"req,oneof"`
 
 		Opt *Option `help:"optional internal struct"`
 	}

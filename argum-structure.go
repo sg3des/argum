@@ -2,7 +2,6 @@ package argum
 
 import (
 	"fmt"
-	"log"
 	"reflect"
 	"strings"
 )
@@ -13,7 +12,7 @@ type structure struct {
 	v reflect.Value
 
 	fields []*field
-	sel    bool
+	oneof  bool
 	taken  bool
 }
 
@@ -67,7 +66,6 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 		}
 
 		if matchSortBooleans(arg) {
-			log.Println("SHORT", arg)
 			shortargs, err := s.splitShortBooleans(arg)
 			if err != nil {
 				return i, err
@@ -94,7 +92,7 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 		}
 
 		switch {
-		case f.sel:
+		case f.oneof:
 			n, err = f.setStruct(args[i:])
 		case f.cmd:
 			n, err = f.setStruct(args[i+1:])
@@ -124,11 +122,11 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 
 		i += n
 
-		if (f.sel || f.cmd) && err != nil && i+1 < len(args) {
+		if (f.oneof || f.cmd) && err != nil && i+1 < len(args) {
 			err = nil
 		}
 
-		if err != nil || s.sel {
+		if err != nil || s.oneof {
 			return
 		}
 	}
@@ -172,75 +170,6 @@ func (s *structure) recShortBoolExists(arg string) bool {
 
 	return false
 }
-
-// func (s *structure) prepareArgs(osArgs []string) (newArgs []string, err error) {
-// 	var prevf *field
-// 	log.Println(osArgs)
-
-// 	for _, arg := range osArgs {
-// 		var f *field
-// 		var ok bool
-
-// 		switch {
-// 		case matchEscape(arg):
-// 			newArgs = append(newArgs, trim(arg))
-// 		case strings.Contains(arg, "="):
-// 			ss := strings.SplitN(arg, "=", 2)
-
-// 			key := ss[0]
-// 			f, ok = s.recursiveArgExists(key)
-// 			if !ok {
-// 				return newArgs, fmt.Errorf("unexpected argument '%s'", key)
-// 			}
-
-// 			newArgs = append(newArgs, key)
-// 			vals := splitArgs(ss[1])
-// 			if len(vals) > 0 {
-// 				newArgs = append(newArgs, vals...)
-// 			}
-
-// 			//if field is slice then
-// 			if f.v.Kind() == reflect.Slice {
-// 				newArgs = append(newArgs, "--")
-// 			}
-// 		case matchShort(arg) && len(arg) > 2:
-// 			key := arg[:2]
-// 			f, ok = s.recursiveArgExists(key)
-// 			if !ok {
-// 				return newArgs, fmt.Errorf("unexpected argument '%s'", key)
-// 			}
-// 			keys, err := s.splitShortArgs(arg[2:])
-// 			if err != nil {
-// 				return newArgs, err
-// 			}
-
-// 			newArgs = append(newArgs, key)
-// 			newArgs = append(newArgs, keys...)
-// 		case strings.Contains(arg, ","):
-// 			vals := splitArgs(arg)
-// 			newArgs = append(newArgs, vals...)
-
-// 			log.Println(prevf)
-// 			if prevf != nil && prevf.v.Kind() == reflect.Slice {
-// 				newArgs = append(newArgs, "--")
-// 			}
-
-// 		case matchLong(arg) || matchShort(arg):
-// 			f, ok = s.recursiveArgExists(arg)
-// 			if !ok {
-// 				return newArgs, fmt.Errorf("unexpected argument '%s'", arg)
-// 			}
-// 			fallthrough
-// 		default:
-// 			newArgs = append(newArgs, arg)
-// 		}
-
-// 		log.Println(f)
-// 		prevf = f
-// 	}
-
-// 	return newArgs, nil
-// }
 
 func (s *structure) recursiveArgExists(arg string) (*field, bool) {
 	for _, f := range s.fields {
@@ -308,7 +237,7 @@ func (s *structure) lookupField(arg string) (*field, bool) {
 
 	//selections
 	for _, f := range s.fields {
-		if !f.taken && f.sel {
+		if !f.taken && f.oneof {
 			return f, true
 		}
 	}
