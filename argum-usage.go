@@ -28,6 +28,7 @@ func (s *structure) appendHelpOptions() {
 
 func (s *structure) writeUsageHelp(w io.Writer) {
 	s.writeUsage(os.Stdout)
+	s.appendHelpOptions()
 	s.writeHelp(os.Stdout)
 }
 
@@ -61,6 +62,10 @@ func (s *structure) writeUsage(w io.Writer) {
 
 func (s *structure) writeHelp(w io.Writer) {
 	oneof, cs, pos, opt := s.splitFieldsHelp()
+
+	if len(oneof) > 0 {
+		fmt.Fprintln(w)
+	}
 
 	for _, f := range oneof {
 		f.writeHelpString(w, "")

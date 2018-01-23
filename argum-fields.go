@@ -218,7 +218,7 @@ func (f *field) transformValue(vals []string) (rv reflect.Value, err error) {
 
 	switch f.v.Interface().(type) {
 	case bool:
-		x = true
+		x, err = strconv.ParseBool(vals[0])
 	case string:
 		x = vals[0]
 	case int:

@@ -22,6 +22,7 @@ func prepareStructure(i interface{}) (*structure, error) {
 	//prepare fields
 	for i := 0; i < s.t.NumField(); i++ {
 		v := s.v.Field(i)
+
 		if !v.CanSet() {
 			continue
 		}
@@ -43,6 +44,7 @@ func newStructure(i interface{}) *structure {
 
 	s.t = reflect.TypeOf(i)
 	s.v = reflect.ValueOf(i)
+
 	if s.v.IsNil() {
 		s.v = reflect.New(s.t.Elem())
 	}
@@ -50,6 +52,7 @@ func newStructure(i interface{}) *structure {
 	if s.v.Kind() == reflect.Ptr {
 		s.v = s.v.Elem()
 	}
+
 	if s.t.Kind() == reflect.Ptr {
 		s.t = s.t.Elem()
 	}

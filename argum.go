@@ -40,8 +40,6 @@ func Parse(i interface{}) error {
 		return fmt.Errorf("failed prepare structure, %s", err)
 	}
 
-	s.appendHelpOptions()
-
 	if contains(os.Args[1:], "--help", "-h") {
 		// INFO: temporary hidden help for specify command, as now output all help information
 		// for _, f := range s.fields {
@@ -128,14 +126,16 @@ func matchLong(s string) bool {
 }
 
 func matchEscape(s string) bool {
-	if s[0] == '"' && s[len(s)-1] == '"' {
-		return true
-	}
-	if s[0] == '\'' && s[len(s)-1] == '\'' {
-		return true
-	}
-	if s[0] == '`' && s[len(s)-1] == '`' {
-		return true
+	if len(s) > 0 {
+		if s[0] == '"' && s[len(s)-1] == '"' {
+			return true
+		}
+		if s[0] == '\'' && s[len(s)-1] == '\'' {
+			return true
+		}
+		if s[0] == '`' && s[len(s)-1] == '`' {
+			return true
+		}
 	}
 	return false
 }
