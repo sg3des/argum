@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -27,9 +26,14 @@ func (s *structure) appendHelpOptions() {
 }
 
 func (s *structure) writeUsageHelp(w io.Writer) {
-	s.writeUsage(os.Stdout)
+	if Description != "" {
+		w.Write([]byte(Description))
+		w.Write([]byte{'\n'})
+	}
+
+	s.writeUsage(w)
 	s.appendHelpOptions()
-	s.writeHelp(os.Stdout)
+	s.writeHelp(w)
 }
 
 func (s *structure) writeUsage(w io.Writer) {
@@ -50,6 +54,7 @@ func (s *structure) writeUsage(w io.Writer) {
 	}
 
 	for _, f := range other {
+
 		if f.pos {
 			usage = append(usage, f.usagePos())
 		} else {
@@ -72,7 +77,8 @@ func (s *structure) writeHelp(w io.Writer) {
 	}
 
 	if len(cs) > 0 {
-		fmt.Fprintln(w, "\noptional commands:")
+
+		fmt.Fprintln(w, "\ncommands:")
 		for _, f := range cs {
 			f.writeHelpString(w, "  ")
 		}
@@ -158,7 +164,7 @@ func (f *field) usagePos() string {
 	}
 
 	if f.req {
-		return fmt.Sprintf("%s", name)
+		return name
 	}
 
 	return fmt.Sprintf("[%s]", name)
@@ -195,6 +201,8 @@ func (f *field) valueType() string {
 		return "[float...]"
 	case []time.Duration:
 		return "[time...]"
+	case bool:
+		return fmt.Sprintf("true/false")
 	}
 
 	return ""
@@ -210,10 +218,12 @@ func (f *field) writeHelpString(w io.Writer, prefix string) {
 		for _, subf := range f.s.fields {
 			subf.writeHelpString(w, strings.Repeat(" ", len(prefix)+2))
 		}
+
 	case f.pos:
 		f.writePositional(w, prefix)
 		f.writeHelp(w)
 		fmt.Fprintln(w)
+
 	default:
 		f.writeOption(w, prefix)
 		f.writeHelp(w)

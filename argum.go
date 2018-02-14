@@ -8,6 +8,8 @@ import (
 )
 
 var (
+	//Description is global variable contains description of application, output on help or arguments error
+	Description string
 	//Version is global variable contains version of main application
 	Version string
 	name    string

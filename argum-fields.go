@@ -189,7 +189,8 @@ func (f *field) setStruct(args []string) (int, error) {
 
 func (f *field) setValue(vals ...string) (int, error) {
 	if len(vals) == 0 {
-		return 0, fmt.Errorf("for field %s value is not set", f.name)
+		panic(fmt.Errorf("for field `%s` value is not set", f.name))
+		return 0, fmt.Errorf("for field `%s` value is not set", f.name)
 	}
 
 	if len(f.variants) > 0 {
