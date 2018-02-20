@@ -2,6 +2,7 @@ package argum
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 	"strings"
 )
@@ -42,19 +43,18 @@ func newStructure(i interface{}) *structure {
 	s := new(structure)
 	s.i = i
 
-	s.t = reflect.TypeOf(i)
 	s.v = reflect.ValueOf(i)
-
-	if s.v.IsNil() {
-		s.v = reflect.New(s.t.Elem())
+	if s.v.Kind() != reflect.Ptr {
+		log.Panicf("%s is not a pointer on struct", s.v.Type())
 	}
+	s.v = s.v.Elem()
+	s.t = s.v.Type()
 
-	if s.v.Kind() == reflect.Ptr {
-		s.v = s.v.Elem()
-	}
-
-	if s.t.Kind() == reflect.Ptr {
+	if s.v.Kind() == reflect.Ptr && s.v.IsNil() {
 		s.t = s.t.Elem()
+
+		s.v.Set(reflect.New(s.t))
+		s.v = s.v.Elem()
 	}
 
 	return s
