@@ -568,6 +568,29 @@ func TestArgumentOrder(t *testing.T) {
 	}
 }
 
+func TestEmbededStruct(t *testing.T) {
+
+	var args struct {
+		Name string `argum:"req,pos"`
+		Mode struct {
+			Addr string `argum:"req,pos"`
+		} `argum:"emb"`
+	}
+
+	err = prepAndParse(&args, []string{"name-value", "addr"})
+	if err != nil {
+		t.Error(err)
+	}
+	if args.Name != "name-value" {
+		t.Error("failed responce argument order")
+	}
+	if args.Mode.Addr != "addr" {
+		t.Error("failed set embeded field")
+	}
+
+	t.Log(args)
+}
+
 func prepAndParse(i interface{}, osargs []string) error {
 	v := reflect.ValueOf(i).Elem()
 	v.Set(reflect.Zero(v.Type()))

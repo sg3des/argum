@@ -21,6 +21,7 @@ type field struct {
 	req          bool
 	cmd          bool
 	oneof        bool
+	emb          bool
 	variants     []string
 
 	help string
@@ -88,6 +89,9 @@ func (s *structure) newField(sf reflect.StructField, v reflect.Value) (f *field,
 			f.s.oneof = true
 		case strings.Contains(key, "|"):
 			f.variants = strings.Split(key, "|")
+		case key == "emb" || key == "embedded":
+			f.emb = true
+			f.s.emb = true
 		default:
 			err = fmt.Errorf("argument '%s' have unexpected tag description: %s", f.name, key)
 		}

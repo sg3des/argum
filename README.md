@@ -17,11 +17,10 @@ Setting up available arguments using tags:
  * `argum:"-s"` - set short signature
  * `argum:"--str"` - set long signature
  * `argum:"-s,--str"` - set short and long signature
- * `argum:"req"` - required argument
- * `argum:"required"` - same, required argument
- * `argum:"pos"` - positional argument
- * `argum:"positional"` - positional argument
+ * `argum:"req"` or `argum:"required"`  - required argument
+ * `argum:"pos"` or `argum:"positional"` - positional argument
  * `argum:"oneof"` - this keyword work only on internal struct, user can select only one of nested fields, itself structure ignored from command line
+ * `argum:"emb"` or `argum:"embedded"` - its keyword work only on for internal struct, and indicates that the struct name should be ignored
  * `help:"some help"` - help description for this option
  * `default:"value"` - default value
  * if struct field not have tag *argum*, then parse it automate
@@ -115,6 +114,25 @@ Keyword `oneof` is means user should chose only one of nested fields. These exam
 	./example echo 8080 listen 8000
 
 
+### Embedding structs
+
+```go
+var args struct {
+	Ping `argum:"emb"`
+}
+
+type Ping struct {
+	IP string `argum:"pos,req"`
+	Count int    `argum:"-c" help:"count of packets"`
+}
+```
+
+Keyword `emb` or `embedded` indicates that the structure name should be ignored. These example will provide next command lines:
+
+	./example 127.0.0.1
+	./example 127.0.0.1 -c 4
+
+
 ### Help and Usage output
 
 ```go
@@ -136,12 +154,12 @@ argum.MustParse(&args)
 ```
 
 ```
-Usage: example [-abc] -s=[str0|str1|str2] [--string=<s>] [-a=<s>] [-o=<s>] [debug|normal|fast]
+usage: example [-abc] -s=[str0|str1|str2] [--string=<s>] [-a=<s>] [-o=<s>] [debug|normal|fast]
 
-Positional:
+positional:
   pos                     mode [default: normal] [debug|normal|fast]
 
-Options:
+options:
   -a                      a option, enable something
   -b                      if true, then something will happen
   -c                      c enable something

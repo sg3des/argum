@@ -41,10 +41,6 @@ func (s *structure) writeUsage(w io.Writer) {
 
 	cs, sb, other := s.splitFieldsUsage()
 
-	for _, f := range cs {
-		usage = append(usage, f.usagePos())
-	}
-
 	if len(sb) > 0 {
 		var shortbooleans string
 		for _, f := range sb {
@@ -60,6 +56,11 @@ func (s *structure) writeUsage(w io.Writer) {
 		} else {
 			usage = append(usage, f.usageOpt())
 		}
+	}
+
+	for _, f := range cs {
+		usage = append(usage, f.usagePos())
+
 	}
 
 	fmt.Fprintln(w, strings.Join(usage, " "))
@@ -102,6 +103,11 @@ func (s *structure) writeHelp(w io.Writer) {
 func (s *structure) splitFieldsUsage() (commands, shortbooleans, other []*field) {
 	for _, f := range s.fields {
 		switch {
+		case f.emb:
+			cs, sb, ot := f.s.splitFieldsUsage()
+			commands = append(commands, cs...)
+			shortbooleans = append(shortbooleans, sb...)
+			other = append(other, ot...)
 		case f.cmd:
 			commands = append(commands, f)
 		case f.shortboolean:
@@ -113,13 +119,20 @@ func (s *structure) splitFieldsUsage() (commands, shortbooleans, other []*field)
 	return
 }
 
-func (s *structure) splitFieldsHelp() (oneof, cs, pos, opt []*field) {
+func (s *structure) splitFieldsHelp() (oneof, commands, pos, opt []*field) {
 	for _, f := range s.fields {
 		switch {
+		case f.emb:
+			one, cs, p, o := f.s.splitFieldsHelp()
+			oneof = append(oneof, one...)
+			commands = append(commands, cs...)
+			pos = append(pos, p...)
+			opt = append(opt, o...)
+
 		case f.oneof:
 			oneof = append(oneof, f)
 		case f.cmd:
-			cs = append(cs, f)
+			commands = append(commands, f)
 		case f.pos:
 			pos = append(pos, f)
 		default:
@@ -210,6 +223,13 @@ func (f *field) valueType() string {
 
 func (f *field) writeHelpString(w io.Writer, prefix string) {
 	switch {
+	case f.emb:
+		//embedded struct name ignores from output to help
+
+		for _, subf := range f.s.fields {
+			subf.writeHelpString(w, strings.Repeat(" ", len(prefix)))
+		}
+
 	case f.cmd:
 		f.writePositional(w, prefix)
 		f.writeHelp(w)

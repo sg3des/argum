@@ -14,6 +14,7 @@ type structure struct {
 
 	fields []*field
 	oneof  bool
+	emb    bool
 	taken  bool
 }
 
@@ -97,6 +98,8 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 		switch {
 		case f.oneof:
 			n, err = f.setStruct(args[i:])
+		case f.emb:
+			n, err = f.setStruct(args[i:])
 		case f.cmd:
 			n, err = f.setStruct(args[i+1:])
 		case f.v.Kind() == reflect.Bool:
@@ -125,11 +128,11 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 
 		i += n
 
-		if (f.oneof || f.cmd) && err != nil && i+1 < len(args) {
+		if (f.oneof || f.cmd || f.emb) && err != nil && i+1 < len(args) {
 			err = nil
 		}
 
-		if err != nil || s.oneof {
+		if err != nil || s.oneof || s.emb {
 			return
 		}
 	}
@@ -236,14 +239,8 @@ func (s *structure) getNextValues(osArgs []string) (vals []string, n int) {
 	return
 }
 
+//lookupField select field or struct most suitable for specify argument, order of `for`-cycles is very important
 func (s *structure) lookupField(arg string) (*field, bool) {
-
-	//selections
-	for _, f := range s.fields {
-		if !f.taken && f.oneof {
-			return f, true
-		}
-	}
 
 	//short and log options
 	for _, f := range s.fields {
@@ -252,16 +249,23 @@ func (s *structure) lookupField(arg string) (*field, bool) {
 		}
 	}
 
-	//commands
+	//positionals
 	for _, f := range s.fields {
-		if !f.taken && f.cmd && f.name == arg {
+		if !f.taken && f.pos {
 			return f, true
 		}
 	}
 
-	//positionals
+	//selections
 	for _, f := range s.fields {
-		if !f.taken && f.pos {
+		if !f.taken && (f.oneof || f.emb) {
+			return f, true
+		}
+	}
+
+	//commands
+	for _, f := range s.fields {
+		if !f.taken && f.cmd && f.name == arg {
 			return f, true
 		}
 	}
