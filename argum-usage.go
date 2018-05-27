@@ -282,10 +282,9 @@ func (f *field) writeOption(w io.Writer, prefix string) {
 	}
 
 	w.Write([]byte(left))
-	if len(left) >= leftColLength {
+	if len(left)+len(prefix) >= leftColLength {
 		w.Write(newline)
 	} else {
-
 		w.Write(bytes.Repeat([]byte{' '}, leftColLength-len(left)-len(prefix)))
 	}
 }
