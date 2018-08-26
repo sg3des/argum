@@ -29,6 +29,10 @@ func prepareStructure(i interface{}) (*structure, error) {
 			continue
 		}
 
+		if tag, ok := s.t.Field(i).Tag.Lookup("argum"); ok && tag == "-" {
+			continue
+		}
+
 		f, err := s.newField(s.t.Field(i), v)
 		if err != nil {
 			return s, err
