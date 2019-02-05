@@ -61,7 +61,11 @@ func (s *structure) newField(sf reflect.StructField, v reflect.Value) (f *field,
 
 	//set default values
 	if !f.cmd && f.def != "" && v.CanSet() {
-		if v.Interface() == reflect.Zero(v.Type()).Interface() {
+
+		val := fmt.Sprintf("%v", v.Interface())
+		zero := fmt.Sprintf("%v", reflect.Zero(v.Type()).Interface())
+
+		if val == zero {
 			x, err := f.transformValue(strings.Split(f.def, ","))
 			if err != nil {
 				return f, err

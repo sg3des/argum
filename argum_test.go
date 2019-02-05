@@ -382,6 +382,56 @@ func TestDefaults(t *testing.T) {
 	check(t, len(a.Durs), 2, "failed set default to slice of time durations")
 }
 
+func TestDefaultsNonOverwrite(t *testing.T) {
+	var a struct {
+		S   string        `default:"str"`
+		B   bool          `default:"false"`
+		I   int           `default:"1"`
+		F32 float32       `default:"0.1"`
+		F64 float64       `default:"0.11"`
+		Dur time.Duration `default:"1s"`
+
+		Ss   []string        `default:"str0,str1"`
+		Bb   []bool          `default:"true,false"`
+		Ii   []int           `default:"1,2"`
+		Ff32 []float32       `default:"0.1,0.2"`
+		Ff64 []float64       `default:"0.11,0.22"`
+		Durs []time.Duration `default:"1s,2s"`
+	}
+
+	a.S = "newstr"
+	a.B = true
+	a.I = 2
+	a.F32 = 0.2
+	a.F64 = 0.22
+	a.Dur = 2 * time.Second
+	a.Ss = []string{"newstr0", "newstr1", "newstr2"}
+	a.Bb = []bool{false, true, true}
+	a.Ii = []int{1, 2, 3}
+	a.Ff32 = []float32{0.1, 0.2, 0.3}
+	a.Ff64 = []float64{0.11, 0.22, 0.33}
+	a.Durs = []time.Duration{2 * time.Second, 3 * time.Second, 4 * time.Second}
+
+	_, err := prepareStructure(&a)
+	if err != nil {
+		t.Error(err)
+	}
+
+	check(t, a.S, "newstr", "failed set default string value")
+	check(t, a.B, true, "failed set default boolean value")
+	check(t, a.I, 2, "failed set default integer value")
+	check(t, a.F32, float32(0.2), "failed set default float32 value")
+	check(t, a.F64, 0.22, "failed set default float64 value")
+	check(t, a.Dur, time.Duration(2e9), "failed set default time.Duration value")
+
+	check(t, len(a.Ss), 3, "failed set default to slice of strings")
+	check(t, len(a.Bb), 3, "failed set default to slice of booleans")
+	check(t, len(a.Ii), 3, "failed set default to slice of integers")
+	check(t, len(a.Ff32), 3, "failed set default to slice of float32")
+	check(t, len(a.Ff64), 3, "failed set default to slice of float64")
+	check(t, len(a.Durs), 3, "failed set default to slice of time durations")
+}
+
 func TestShortBooleans(t *testing.T) {
 	var args struct {
 		A bool
