@@ -61,11 +61,13 @@ func (s *structure) newField(sf reflect.StructField, v reflect.Value) (f *field,
 
 	//set default values
 	if !f.cmd && f.def != "" && v.CanSet() {
-		x, err := f.transformValue(strings.Split(f.def, ","))
-		if err != nil {
-			return f, err
+		if v.Interface() == reflect.Zero(v.Type()).Interface() {
+			x, err := f.transformValue(strings.Split(f.def, ","))
+			if err != nil {
+				return f, err
+			}
+			f.v.Set(x)
 		}
-		f.v.Set(x)
 	}
 
 	tag, ok := sf.Tag.Lookup("argum")
