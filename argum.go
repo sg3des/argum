@@ -66,14 +66,23 @@ func PrintHelp(exitcode int) {
 }
 
 func splitArg(s string) (string, []string) {
+	if matchEscape(s) {
+		s = trim(s)
+	}
+
 	switch {
-	case matchEscape(s):
-		return trim(s), nil
+	// case matchEscape(s):
+	// 	s = trim(s)
+	// 	if strings.ContainsAny(s, ",/ ") {
+	// 		return "", strings.Split(s, ",")
+	// 	}
 	case strings.Contains(s, "="):
 		ss := strings.SplitN(s, "=", 2)
 		return ss[0], splitValues(ss[1])
 	case matchShort(s) && len(s) > 2:
 		return s[:2], splitValues(s[2:])
+	case strings.ContainsAny(s, ",/ "):
+		return "", strings.Split(s, ",")
 	}
 
 	return s, nil

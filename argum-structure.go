@@ -110,9 +110,17 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 			n, err = f.setBool(arg, vals, next)
 		case f.pos:
 			if len(vals) > 0 {
-				_, err = f.setValue(append([]string{arg}, vals...)...)
+				if arg != "" {
+					vals = append([]string{arg}, vals...)
+				}
+
+				_, err = f.setValue(vals...)
 			} else {
-				n, err = f.setValue(append([]string{arg}, next...)...)
+				if arg != "" {
+					next = append([]string{arg}, next...)
+				}
+
+				n, err = f.setValue(next...)
 				if n > 1 {
 					n = x
 				} else {
@@ -255,7 +263,7 @@ func (s *structure) lookupField(arg string) (*field, bool) {
 
 	//positionals
 	for _, f := range s.fields {
-		if !f.taken && f.pos {
+		if !f.taken && f.pos && !f.cmd {
 			return f, true
 		}
 	}
