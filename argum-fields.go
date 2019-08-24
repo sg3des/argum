@@ -233,6 +233,10 @@ func (f *field) transformValue(vals []string) (rv reflect.Value, err error) {
 		x = vals[0]
 	case int:
 		x, err = strconv.Atoi(vals[0])
+	case int64:
+		var _x int
+		_x, err = strconv.Atoi(vals[0])
+		x = int64(_x)
 	case float32:
 		var _x float64
 		_x, err = strconv.ParseFloat(vals[0], 32)
