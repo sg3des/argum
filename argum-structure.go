@@ -21,7 +21,7 @@ type structure struct {
 func prepareStructure(i interface{}) (*structure, error) {
 	s := newStructure(i)
 
-	//prepare fields
+	// prepare fields
 	for i := 0; i < s.t.NumField(); i++ {
 		v := s.v.Field(i)
 
@@ -66,7 +66,6 @@ func newStructure(i interface{}) *structure {
 }
 
 func (s *structure) parseArgs(args []string) (i int, err error) {
-
 	for i = 0; i < len(args); i++ {
 		arg := args[i]
 		if arg == "--" {
@@ -214,7 +213,6 @@ func (s *structure) recursiveArgExists(arg string) (*field, bool) {
 }
 
 func (s *structure) getNextValues(osArgs []string) (vals []string, n int) {
-
 	for i, arg := range osArgs {
 		var ok bool
 
@@ -251,31 +249,30 @@ func (s *structure) getNextValues(osArgs []string) (vals []string, n int) {
 	return
 }
 
-//lookupField select field or struct most suitable for specify argument, order of `for`-cycles is very important
+// lookupField select field or struct most suitable for specify argument, order of `for`-cycles is very important
 func (s *structure) lookupField(arg string) (*field, bool) {
-
-	//short and log options
+	// short and log options
 	for _, f := range s.fields {
-		if !f.taken && (f.short == arg || f.long == arg) {
+		if !f.taken && (f.short != "" && f.short == arg || f.long != "" && f.long == arg) {
 			return f, true
 		}
 	}
 
-	//positionals
+	// positionals
 	for _, f := range s.fields {
 		if !f.taken && f.pos && !f.cmd {
 			return f, true
 		}
 	}
 
-	//selections
+	// selections
 	for _, f := range s.fields {
 		if !f.taken && (f.oneof || f.emb) {
 			return f, true
 		}
 	}
 
-	//commands
+	// commands
 	for _, f := range s.fields {
 		if !f.taken && f.cmd && f.name == arg {
 			return f, true
