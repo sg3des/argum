@@ -8,15 +8,15 @@ import (
 )
 
 var (
-	//Description is global variable contains description of application, output on help or arguments error
+	// Description is global variable contains description of application, output on help or arguments error
 	Description string
-	//Version is global variable contains version of main application
+	// Version is global variable contains version of main application
 	Version string
 	name    string
 	s       *structure
 )
 
-//MustParse parse os.Args for struct and fatal if it has error
+// MustParse parse os.Args for struct and fatal if it has error
 func MustParse(i interface{}) {
 	if err := Parse(i); err != nil {
 		fmt.Println(err)
@@ -24,7 +24,7 @@ func MustParse(i interface{}) {
 	}
 }
 
-//Parse os.Args for incomimng struct and return error
+// Parse os.Args for incomimng struct and return error
 func Parse(i interface{}) error {
 	if Version != "" && contains(os.Args, "--version") {
 		fmt.Println(Version)
@@ -59,7 +59,7 @@ func Parse(i interface{}) error {
 	return err
 }
 
-//PrintHelp to stdout end exit
+// PrintHelp to stdout end exit
 func PrintHelp(exitcode int) {
 	s.writeUsageHelp(os.Stdout)
 	os.Exit(exitcode)

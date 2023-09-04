@@ -40,7 +40,7 @@ func (s *structure) newField(sf reflect.StructField, v reflect.Value) (f *field,
 		def:   sf.Tag.Get("default"),
 	}
 
-	//prepare commands
+	// prepare commands
 	if f.v.Kind() == reflect.Ptr || f.v.Kind() == reflect.Struct {
 		f.cmd = true
 
@@ -59,7 +59,7 @@ func (s *structure) newField(sf reflect.StructField, v reflect.Value) (f *field,
 		}
 	}
 
-	//set default values
+	// set default values
 	if !f.cmd && f.def != "" && v.CanSet() {
 
 		val := fmt.Sprintf("%v", v.Interface())
@@ -149,7 +149,6 @@ func (f *field) nameMatch(arg string) bool {
 }
 
 func (f *field) setBool(arg string, vals []string, next []string) (int, error) {
-
 	if len(next) > 0 {
 		_, err := strconv.ParseBool(next[0])
 		if err == nil {

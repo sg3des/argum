@@ -83,9 +83,13 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 			continue
 		}
 
-		arg, vals := splitArg(arg)
+		if matchEscape(arg) {
+			arg = trim(arg)
+		}
 
-		f, ok := s.lookupField(arg)
+		key, vals := splitArg(arg)
+
+		f, ok := s.lookupField(key)
 		if !ok {
 			return i, fmt.Errorf("unexpected argument '%s'", args[i])
 		}
@@ -106,7 +110,7 @@ func (s *structure) parseArgs(args []string) (i int, err error) {
 		case f.cmd:
 			n, err = f.setStruct(args[i+1:])
 		case f.v.Kind() == reflect.Bool:
-			n, err = f.setBool(arg, vals, next)
+			n, err = f.setBool(key, vals, next)
 		case f.pos:
 			if len(vals) > 0 {
 				if arg != "" {
