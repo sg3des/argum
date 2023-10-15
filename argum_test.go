@@ -619,7 +619,6 @@ func TestArgumentOrder(t *testing.T) {
 }
 
 func TestEmbededStruct(t *testing.T) {
-
 	var args struct {
 		Name string `argum:"req,pos"`
 		Mode struct {
@@ -636,6 +635,20 @@ func TestEmbededStruct(t *testing.T) {
 	}
 	if args.Mode.Addr != "addr" {
 		t.Error("failed set embeded field")
+	}
+
+	t.Log(args)
+}
+
+func TestPosSlice(t *testing.T) {
+	var args struct {
+		Num     int      `argum:"--num" default:"10"`
+		Name    string   `argum:"--name,req"`
+		Strings []string `argum:"pos,req"`
+	}
+
+	if err := prepAndParse(&args, []string{"--name", "val0", "./a.ext", "./b.ext", "./c.ext", "./dir/d_01.ext"}); err != nil {
+		t.Error(err)
 	}
 
 	t.Log(args)

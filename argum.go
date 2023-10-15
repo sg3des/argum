@@ -81,7 +81,7 @@ func splitArg(s string) (string, []string) {
 		return ss[0], splitValues(ss[1])
 	case matchShort(s) && len(s) > 2:
 		return s[:2], splitValues(s[2:])
-	case strings.ContainsAny(s, ",/ "):
+	case strings.Contains(s, ","):
 		return "", strings.Split(s, ",")
 	}
 
