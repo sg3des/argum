@@ -207,6 +207,10 @@ func (f *field) setValue(vals ...string) (int, error) {
 		}
 	}
 
+	if len(vals) == 1 && vals[0] == "" {
+		return 0, nil
+	}
+
 	rv, err := f.transformValue(vals)
 	if err != nil {
 		return 0, err
